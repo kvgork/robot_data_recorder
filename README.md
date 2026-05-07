@@ -1,0 +1,318 @@
+# lerobot-isaac-recorder
+
+D435 camera + SO-101 teleoperation **dual-write recorder** for the
+`lerobot-isaac-training` workspace.
+
+Records demonstration episodes simultaneously to:
+- **LeRobot v3 Parquet** — for policy training with ACT / SmolVLA / DiffPolicy
+- **stable-worldmodel HDF5** — for world-model training with LeWM
+
+Architecture: **Path B (in-session dual-write)**. After each episode the recorder
+calls `LeRobotDataset.save_episode()` and `HDF5Writer.write_episode()` on the same
+in-memory buffer. Both writes happen before the next episode starts.
+
+---
+
+## Status
+
+**Phase 0 — scaffold complete.**
+All classes implemented and tested with mock hardware.
+Real hardware loop (D435 + SO-101) requires `pyrealsense2` + `lerobot` at runtime.
+
+| Component | Status |
+|-----------|--------|
+| `RecordingConfig` | Implemented |
+| `EpisodeSchema` + validation | Implemented |
+| `D435Stream` + `MockD435Stream` | Implemented |
+| `SO101Teleop` + `MockSO101Teleop` | Implemented |
+| `DualWriter` (parquet / hdf5 / dual) | Implemented |
+| `RecordingSession` | Implemented |
+| CLI (`lerobot-isaac-record`) | Implemented |
+| Real hardware loop | Phase 1 (requires bench) |
+| Camera calibration persistence | Phase 2 |
+| Isaac sim mirror writer (Path C) | Future |
+
+---
+
+## Installation
+
+### Monorepo mode (pixi)
+
+```bash
+cd ~/workspaces/lerobot-isaac-training
+pixi install         # installs all workspace packages
+```
+
+### Standalone mode
+
+```bash
+cd packages/lerobot-isaac-recorder
+pixi install         # standalone pixi environment (dormant in monorepo mode)
+```
+
+### Direct pip install
+
+```bash
+pip install -e packages/lerobot-isaac-recorder/
+```
+
+### Optional heavy deps
+
+```bash
+# For real D435 camera recording:
+pip install pyrealsense2
+
+# For LeRobot Parquet output (parquet / dual format):
+bash scripts/install_lerobot.sh    # or: pip install lerobot
+
+# For LeWM HDF5 output (hdf5 / dual format):
+pip install stable-worldmodel
+```
+
+---
+
+## Quick Example
+
+### Dry-run (no hardware, no deps)
+
+```bash
+lerobot-isaac-record \
+  --repo-id=koen/so101-pickplace \
+  --num-episodes=10 \
+  --format=dual \
+  --task="pick and place cube" \
+  --dry-run
+```
+
+Expected output:
+```
+[lerobot-isaac-record] DRY RUN — resolved config:
+{
+  "repo_id": "koen/so101-pickplace",
+  "num_episodes": 10,
+  "format": "dual",
+  ...
+}
+```
+
+### Python API (mock hardware)
+
+```python
+from lerobot_isaac_recorder import RecordingConfig, RecordingSession
+from lerobot_isaac_recorder.d435 import make_d435
+from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+
+cfg = RecordingConfig(
+    repo_id="koen/so101-pickplace",
+    num_episodes=3,
+    format="hdf5",    # no lerobot needed
+    output_dir="./datasets",
+    dry_run=True,
+)
+cam = make_d435(mock=True)
+teleop = MockSO101Teleop()
+
+with RecordingSession(cfg, camera=cam, teleop=teleop, writer=None) as session:
+    for ep_idx in range(cfg.num_episodes):
+        buf = session.record_episode(ep_idx)
+        print(f"Episode {ep_idx}: {len(buf.pixels)} steps")
+```
+
+### Real hardware (D435 + SO-101)
+
+```bash
+lerobot-isaac-record \
+  --repo-id=koen/so101-pickplace \
+  --num-episodes=50 \
+  --format=dual \
+  --arm-port=/dev/ttyUSB0 \
+  --leader-port=/dev/ttyUSB1 \
+  --camera-serial=AUTO \
+  --resolution=640x480 \
+  --fps=30 \
+  --task="pick and place cube" \
+  --output-dir=./datasets
+```
+
+---
+
+## Public API
+
+### `RecordingConfig`
+
+```python
+@dataclass
+class RecordingConfig:
+    repo_id: str = "local/recording"
+    num_episodes: int = 1
+    format: str = "dual"           # parquet | hdf5 | dual
+    output_dir: str = "./datasets"
+    task: str = "unspecified"
+    fps: int = 30
+    arm_port: str = "/dev/ttyUSB0"
+    leader_port: str | None = None
+    camera_serial: str | None = None
+    resolution: tuple[int, int] = (640, 480)
+    enable_depth: bool = False
+    max_steps: int = 200
+    dry_run: bool = False
+
+    @classmethod
+    def from_yaml(cls, path) -> RecordingConfig: ...
+    def to_dict(self) -> dict: ...
+```
+
+### `RecordingSession`
+
+```python
+class RecordingSession:
+    def __init__(self, config, camera, teleop, writer): ...
+    def __enter__(self) -> RecordingSession: ...  # starts camera + teleop
+    def __exit__(self, *_): ...                    # stops + finalizes
+    def record_episode(self, episode_idx) -> EpisodeBuffer: ...
+    def save_episode(self, buffer) -> None: ...
+```
+
+### `DualWriter`
+
+```python
+class DualWriter:
+    def __init__(self, config: RecordingConfig): ...
+    def write_episode(self, ep: dict) -> None: ...
+    def finalize(self) -> dict[str, Path]: ...
+```
+
+### `make_d435` factory
+
+```python
+def make_d435(
+    serial=None,
+    resolution=(640, 480),
+    fps=30,
+    enable_depth=False,
+    mock=False,          # True -> MockD435Stream for tests
+) -> D435Stream | MockD435Stream: ...
+```
+
+### Schema helpers
+
+```python
+from lerobot_isaac_recorder.schema import (
+    validate_episode_buffer,    # raises ValueError on bad buffer
+    compute_ep_offset,           # [10, 20] -> [0, 10]
+    lerobot_features_dict,       # features dict for LeRobotDataset.create()
+)
+```
+
+---
+
+## Episode Schema
+
+The canonical superset schema (from `schema.EpisodeSchema`):
+
+| Field | Dtype | Shape | Description |
+|-------|-------|-------|-------------|
+| `pixels` | uint8 | (T, H, W, C) | RGB frames |
+| `action` | float32 | (T, A) | Commanded joint angles + gripper |
+| `state` | float32 | (T, S) | Observed joint positions + gripper |
+| `proprio` | float32 | (T, P) | Same as state for SO-101 |
+| `done` | bool | (T,) | Episode terminal flag |
+| `timestamp` | float32 | (T,) | Hardware timestamp (seconds) |
+| `episode_idx` | int64 | (T,) | Global episode index |
+| `step_idx` | int64 | (T,) | Within-episode step index |
+| `reward` | float32 | (T,) | Reward (0.0 for teleop) |
+| `ep_len` | int64 | (N_ep,) | Length of each episode |
+| `ep_offset` | int64 | (N_ep,) | Cumulative start offset |
+
+Episode i occupies rows `[ep_offset[i], ep_offset[i] + ep_len[i])`.
+
+---
+
+## Dependencies
+
+### Hard (always required)
+
+| Package | Purpose |
+|---------|---------|
+| `h5py` | HDF5 read/write |
+| `numpy` | Array operations |
+| `pyyaml` | YAML config loading |
+| `lerobot-isaac-configs` | Workspace config loader |
+
+### Soft (required only for specific features)
+
+| Package | Required for | Install |
+|---------|-------------|---------|
+| `pyrealsense2` | Real D435 camera | `pip install pyrealsense2` |
+| `lerobot` | Parquet output | `bash scripts/install_lerobot.sh` |
+| `stable-worldmodel` | HDF5 output | `pip install stable-worldmodel` |
+
+---
+
+## Configuration
+
+### YAML config file
+
+```yaml
+# recording_default.yaml
+repo_id: koen/so101-pickplace
+num_episodes: 50
+format: dual
+fps: 30
+arm_port: /dev/ttyUSB0
+leader_port: /dev/ttyUSB1
+resolution: [640, 480]
+task: "pick and place cube"
+max_steps: 300
+```
+
+Load via:
+
+```bash
+lerobot-isaac-record --config=recording_default --dry-run
+```
+
+Or in Python:
+
+```python
+cfg = RecordingConfig.from_yaml("configs/recording_default.yaml")
+```
+
+---
+
+## Running Tests
+
+```bash
+cd packages/lerobot-isaac-recorder
+python3 -m pytest tests/ -v
+```
+
+No hardware or optional deps required. All tests use mocks.
+
+To run only unit tests (no markers):
+
+```bash
+pytest tests/ -m 'not requires_realsense and not requires_lerobot'
+```
+
+---
+
+## Spinout
+
+This package can be extracted as a standalone PyPI package:
+
+```bash
+git subtree split -P packages/lerobot-isaac-recorder -b spinout-recorder
+```
+
+After spinout, update sibling `pyproject.toml` files to reference the PyPI version.
+See `../../docs/ARCHITECTURE.md` (spinout section).
+
+---
+
+## Source-of-Truth Pointers
+
+- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
+- Research: `05-Wiki/project-context/research/2026-05-07-dual-recording-lerobot-leworldmodel/details.md`
+- ADR-0003: `../../docs/adr/0003-soft-import-discipline.md`
+- Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`
