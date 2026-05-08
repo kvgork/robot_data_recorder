@@ -1,4 +1,4 @@
-# lerobot-isaac-recorder
+# robot-data-recorder
 
 D435 camera + SO-101 teleoperation **dual-write recorder** for the
 `lerobot-isaac-training` workspace.
@@ -27,7 +27,7 @@ Real hardware loop (D435 + SO-101) requires `pyrealsense2` + `lerobot` at runtim
 | `SO101Teleop` + `MockSO101Teleop` | Implemented |
 | `DualWriter` (parquet / hdf5 / dual) | Implemented |
 | `RecordingSession` | Implemented |
-| CLI (`lerobot-isaac-record`) | Implemented |
+| CLI (`robot-data-record`) | Implemented |
 | Real hardware loop | Phase 1 (requires bench) |
 | Camera calibration persistence | Phase 2 |
 | Isaac sim mirror writer (Path C) | Future |
@@ -46,14 +46,14 @@ pixi install         # installs all workspace packages
 ### Standalone mode
 
 ```bash
-cd packages/lerobot-isaac-recorder
+cd packages/robot-data-recorder
 pixi install         # standalone pixi environment (dormant in monorepo mode)
 ```
 
 ### Direct pip install
 
 ```bash
-pip install -e packages/lerobot-isaac-recorder/
+pip install -e packages/robot-data-recorder/
 ```
 
 ### Optional heavy deps
@@ -76,8 +76,8 @@ pip install stable-worldmodel
 ### Dry-run (no hardware, no deps)
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=10 \
   --format=dual \
   --task="pick and place cube" \
@@ -86,9 +86,9 @@ lerobot-isaac-record \
 
 Expected output:
 ```
-[lerobot-isaac-record] DRY RUN — resolved config:
+[robot-data-record] DRY RUN — resolved config:
 {
-  "repo_id": "koen/so101-pickplace",
+  "repo_id": "myuser/so101-pickplace",
   "num_episodes": 10,
   "format": "dual",
   ...
@@ -98,12 +98,12 @@ Expected output:
 ### Python API (mock hardware)
 
 ```python
-from lerobot_isaac_recorder import RecordingConfig, RecordingSession
-from lerobot_isaac_recorder.d435 import make_d435
-from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+from robot_data_recorder import RecordingConfig, RecordingSession
+from robot_data_recorder.d435 import make_d435
+from robot_data_recorder.so101_teleop import MockSO101Teleop
 
 cfg = RecordingConfig(
-    repo_id="koen/so101-pickplace",
+    repo_id="myuser/so101-pickplace",
     num_episodes=3,
     format="hdf5",    # no lerobot needed
     output_dir="./datasets",
@@ -121,8 +121,8 @@ with RecordingSession(cfg, camera=cam, teleop=teleop, writer=None) as session:
 ### Real hardware (D435 + SO-101)
 
 ```bash
-lerobot-isaac-record \
-  --repo-id=koen/so101-pickplace \
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
   --arm-port=/dev/ttyUSB0 \
@@ -197,7 +197,7 @@ def make_d435(
 ### Schema helpers
 
 ```python
-from lerobot_isaac_recorder.schema import (
+from robot_data_recorder.schema import (
     validate_episode_buffer,    # raises ValueError on bad buffer
     compute_ep_offset,           # [10, 20] -> [0, 10]
     lerobot_features_dict,       # features dict for LeRobotDataset.create()
@@ -255,7 +255,7 @@ Episode i occupies rows `[ep_offset[i], ep_offset[i] + ep_len[i])`.
 
 ```yaml
 # recording_default.yaml
-repo_id: koen/so101-pickplace
+repo_id: myuser/so101-pickplace
 num_episodes: 50
 format: dual
 fps: 30
@@ -269,7 +269,7 @@ max_steps: 300
 Load via:
 
 ```bash
-lerobot-isaac-record --config=recording_default --dry-run
+robot-data-record --config=recording_default --dry-run
 ```
 
 Or in Python:
@@ -283,7 +283,7 @@ cfg = RecordingConfig.from_yaml("configs/recording_default.yaml")
 ## Running Tests
 
 ```bash
-cd packages/lerobot-isaac-recorder
+cd packages/robot-data-recorder
 python3 -m pytest tests/ -v
 ```
 
@@ -302,7 +302,7 @@ pytest tests/ -m 'not requires_realsense and not requires_lerobot'
 This package can be extracted as a standalone PyPI package:
 
 ```bash
-git subtree split -P packages/lerobot-isaac-recorder -b spinout-recorder
+git subtree split -P packages/robot-data-recorder -b spinout-recorder
 ```
 
 After spinout, update sibling `pyproject.toml` files to reference the PyPI version.
@@ -312,7 +312,5 @@ See `../../docs/ARCHITECTURE.md` (spinout section).
 
 ## Source-of-Truth Pointers
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
-- Research: `05-Wiki/project-context/research/2026-05-07-dual-recording-lerobot-leworldmodel/details.md`
-- ADR-0003: `../../docs/adr/0003-soft-import-discipline.md`
-- Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`
+- ADR-0003 (soft-import discipline): `../../docs/adr/0003-soft-import-discipline.md`
+- Workspace architecture: `../../docs/ARCHITECTURE.md`

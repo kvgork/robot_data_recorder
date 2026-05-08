@@ -2,7 +2,7 @@
 schema
 ======
 
-Canonical superset schema for lerobot-isaac-recorder episodes.
+Canonical superset schema for robot-data-recorder episodes.
 
 The schema is a superset of:
 - stable-worldmodel HDF5Dataset (pixels, action, reward, ep_len, ep_offset)

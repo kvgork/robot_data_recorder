@@ -15,11 +15,11 @@ by ``max_steps`` (scaffolding) or a keyboard interrupt (real deployment).
 
 Usage::
 
-    from lerobot_isaac_recorder.recorder import RecordingSession
-    from lerobot_isaac_recorder.d435 import make_d435
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
-    from lerobot_isaac_recorder.dual_writer import DualWriter
-    from lerobot_isaac_recorder.config import RecordingConfig
+    from robot_data_recorder.recorder import RecordingSession
+    from robot_data_recorder.d435 import make_d435
+    from robot_data_recorder.so101_teleop import MockSO101Teleop
+    from robot_data_recorder.dual_writer import DualWriter
+    from robot_data_recorder.config import RecordingConfig
 
     cfg = RecordingConfig(repo_id="test", format="hdf5", dry_run=True)
     cam = make_d435(mock=True)
@@ -39,12 +39,12 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
-from lerobot_isaac_recorder.config import RecordingConfig
+from robot_data_recorder.config import RecordingConfig
 
 if TYPE_CHECKING:
-    from lerobot_isaac_recorder.d435 import D435Stream, MockD435Stream
-    from lerobot_isaac_recorder.dual_writer import DualWriter
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop, SO101Teleop
+    from robot_data_recorder.d435 import D435Stream, MockD435Stream
+    from robot_data_recorder.dual_writer import DualWriter
+    from robot_data_recorder.so101_teleop import MockSO101Teleop, SO101Teleop
 
 
 @dataclass
@@ -245,8 +245,8 @@ class MockRecordingSession(RecordingSession):
     """
 
     def __init__(self, config: RecordingConfig, writer: Optional[Any] = None) -> None:
-        from lerobot_isaac_recorder.d435 import MockD435Stream
-        from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+        from robot_data_recorder.d435 import MockD435Stream
+        from robot_data_recorder.so101_teleop import MockSO101Teleop
 
         cam = MockD435Stream(resolution=config.resolution, fps=config.fps)
         teleop = MockSO101Teleop()

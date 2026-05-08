@@ -16,7 +16,7 @@ Architecture (Path B from research synthesis):
 
 Usage::
 
-    cfg = RecordingConfig(repo_id="koen/pickplace", format="dual")
+    cfg = RecordingConfig(repo_id="myuser/pickplace", format="dual")
     writer = DualWriter(cfg)
     writer.write_episode(ep_dict)
     paths = writer.finalize()
@@ -28,8 +28,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from lerobot_isaac_recorder.config import RecordingConfig
-from lerobot_isaac_recorder.schema import (
+from robot_data_recorder.config import RecordingConfig
+from robot_data_recorder.schema import (
     SCHEMA,
     lerobot_features_dict,
     validate_episode_buffer,

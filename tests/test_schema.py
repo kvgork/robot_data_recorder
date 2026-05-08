@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from lerobot_isaac_recorder.schema import (
+from robot_data_recorder.schema import (
     EpisodeSchema,
     compute_ep_offset,
     lerobot_features_dict,

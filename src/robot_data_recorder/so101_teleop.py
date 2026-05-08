@@ -13,7 +13,7 @@ follower mirrors it while joint positions and actions are recorded.
 
 Usage (real hardware)::
 
-    from lerobot_isaac_recorder.so101_teleop import SO101Teleop
+    from robot_data_recorder.so101_teleop import SO101Teleop
 
     teleop = SO101Teleop(arm_port="/dev/ttyUSB0", leader_port="/dev/ttyUSB1")
     teleop.start()
@@ -23,7 +23,7 @@ Usage (real hardware)::
 
 Usage (tests)::
 
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+    from robot_data_recorder.so101_teleop import MockSO101Teleop
 
     teleop = MockSO101Teleop()
     teleop.start()

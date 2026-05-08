@@ -1,9 +1,9 @@
-# packages/lerobot-isaac-recorder/pixi.toml
+# packages/robot-data-recorder/pixi.toml
 # DORMANT in monorepo mode — only active after spinout via git subtree split.
 # In monorepo mode the root pixi.toml governs all environments.
 
 [workspace]
-name = "lerobot-isaac-recorder"
+name = "robot-data-recorder"
 channels = ["conda-forge"]
 platforms = ["linux-64"]
 
@@ -12,7 +12,7 @@ python = ">=3.10,<3.12"
 pip = "*"
 
 [pypi-dependencies]
-lerobot-isaac-recorder = { path = ".", editable = true }
+robot-data-recorder = { path = ".", editable = true }
 
 [feature.dev.dependencies]
 pytest = "*"

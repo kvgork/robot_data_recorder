@@ -9,7 +9,7 @@ Intel RealSense D435 camera stream wrapper.
 
 Usage (real hardware)::
 
-    from lerobot_isaac_recorder.d435 import make_d435
+    from robot_data_recorder.d435 import make_d435
 
     with make_d435(fps=30) as cam:
         frame = cam.read_frame()   # {'rgb': ..., 'depth': None, 'timestamp': ...}

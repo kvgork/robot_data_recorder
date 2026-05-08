@@ -1,13 +1,13 @@
-# lerobot-isaac-recorder — Public API Reference
+# robot-data-recorder — Public API Reference
 
 ---
 
-## Module: `lerobot_isaac_recorder`
+## Module: `robot_data_recorder`
 
 Top-level public exports.
 
 ```python
-from lerobot_isaac_recorder import (
+from robot_data_recorder import (
     RecordingConfig,
     RecordingSession,
     DualWriter,
@@ -26,7 +26,7 @@ from lerobot_isaac_recorder import (
 
 ---
 
-## Module: `lerobot_isaac_recorder.config`
+## Module: `robot_data_recorder.config`
 
 ### `class RecordingConfig`
 
@@ -68,7 +68,7 @@ Return JSON-serialisable dict for `--dry-run` printout.
 
 ---
 
-## Module: `lerobot_isaac_recorder.schema`
+## Module: `robot_data_recorder.schema`
 
 ### `class EpisodeSchema` (frozen dataclass)
 
@@ -115,7 +115,7 @@ Build LeRobot v3 features dict for `LeRobotDataset.create()`.
 
 ---
 
-## Module: `lerobot_isaac_recorder.d435`
+## Module: `robot_data_recorder.d435`
 
 ### `class D435Stream`
 
@@ -150,7 +150,7 @@ Factory function. Set `mock=True` for tests.
 
 ---
 
-## Module: `lerobot_isaac_recorder.so101_teleop`
+## Module: `robot_data_recorder.so101_teleop`
 
 ### `class SO101Teleop`
 
@@ -176,7 +176,7 @@ API-identical synthetic arm for tests.
 
 ---
 
-## Module: `lerobot_isaac_recorder.dual_writer`
+## Module: `robot_data_recorder.dual_writer`
 
 ### `class DualWriter`
 
@@ -207,7 +207,7 @@ Raises `ImportError` if required backend library is missing for the chosen forma
 
 ---
 
-## Module: `lerobot_isaac_recorder.recorder`
+## Module: `robot_data_recorder.recorder`
 
 ### `class EpisodeBuffer` (dataclass)
 
@@ -244,7 +244,7 @@ Subclass of `RecordingSession` that auto-creates `MockD435Stream` + `MockSO101Te
 
 ---
 
-## Module: `lerobot_isaac_recorder.cli`
+## Module: `robot_data_recorder.cli`
 
 ### `main(argv: list[str] | None = None) -> int`
 
