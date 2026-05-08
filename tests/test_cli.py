@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from lerobot_isaac_recorder.cli import _build_parser, _parse_resolution, main
+from robot_data_recorder.cli import _build_parser, _parse_resolution, main
 
 
 # ------------------------------------------------------------------ #
@@ -69,7 +69,7 @@ def test_parser_all_flags_parseable() -> None:
     """Smoke test: all documented flags parse without error."""
     parser = _build_parser()
     args = parser.parse_args([
-        "--repo-id=koen/pickplace",
+        "--repo-id=myuser/pickplace",
         "--num-episodes=5",
         "--format=dual",
         "--output-dir=/tmp/datasets",
@@ -82,7 +82,7 @@ def test_parser_all_flags_parseable() -> None:
         "--max-steps=100",
         "--dry-run",
     ])
-    assert args.repo_id == "koen/pickplace"
+    assert args.repo_id == "myuser/pickplace"
     assert args.num_episodes == 5
     assert args.dry_run is True
 

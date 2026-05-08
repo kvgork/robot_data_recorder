@@ -2,7 +2,7 @@
 config
 ======
 
-RecordingConfig dataclass for lerobot-isaac-recorder.
+RecordingConfig dataclass for robot-data-recorder.
 
 All recording session parameters are captured here. The dataclass is
 intentionally flat (no nested sub-configs) to keep YAML files simple
@@ -24,7 +24,7 @@ class RecordingConfig:
     Attributes
     ----------
     repo_id:
-        HuggingFace repo id or local dataset name (e.g. ``koen/so101-pickplace``).
+        HuggingFace repo id or local dataset name (e.g. ``myuser/so101-pickplace``).
     num_episodes:
         Number of episodes to record per session.
     format:

@@ -1,5 +1,5 @@
 """
-conftest.py — package-level pytest configuration for lerobot-isaac-recorder.
+conftest.py — package-level pytest configuration for robot-data-recorder.
 
 Registers markers so tests can be skipped selectively when heavy deps
 (pyrealsense2, lerobot, stable_worldmodel) are not installed.

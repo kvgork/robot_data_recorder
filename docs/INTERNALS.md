@@ -1,4 +1,4 @@
-# lerobot-isaac-recorder — Internals
+# robot-data-recorder — Internals
 
 ---
 
@@ -118,7 +118,7 @@ Multiple-Reader) mode. This is HDF5's safe concurrent access mechanism. The writ
 is opened once at init and closed in `finalize()`.
 
 **Output path naming:** HDF5 file uses `{repo_id.replace("/", "__")}.h5` so that
-`koen/pickplace` becomes `koen__pickplace.h5`. Slashes are not valid in filenames.
+`myuser/pickplace` becomes `myuser__pickplace.h5`. Slashes are not valid in filenames.
 
 **Finalize:** Calls `LeRobotDataset.finalize()` (required before HF push) and then
 closes the HDF5 writer. Both calls are wrapped in `try/except` for best-effort close.

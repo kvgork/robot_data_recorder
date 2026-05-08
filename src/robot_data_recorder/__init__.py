@@ -1,5 +1,5 @@
 """
-lerobot-isaac-recorder
+robot-data-recorder
 ======================
 
 D435 camera + SO-101 teleoperation dual-write recorder.
@@ -17,9 +17,9 @@ Public API
 
 Quick start (dry-run, no hardware)::
 
-    from lerobot_isaac_recorder import RecordingConfig, RecordingSession
-    from lerobot_isaac_recorder.d435 import make_d435
-    from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
+    from robot_data_recorder import RecordingConfig, RecordingSession
+    from robot_data_recorder.d435 import make_d435
+    from robot_data_recorder.so101_teleop import MockSO101Teleop
 
     cfg = RecordingConfig(repo_id="test/demo", dry_run=True)
     cam = make_d435(mock=True)
@@ -31,11 +31,11 @@ Quick start (dry-run, no hardware)::
         print(buf.pixels[0].shape)        # (480, 640, 3)
 """
 
-from lerobot_isaac_recorder.config import RecordingConfig
-from lerobot_isaac_recorder.d435 import D435Stream
-from lerobot_isaac_recorder.dual_writer import DualWriter
-from lerobot_isaac_recorder.recorder import RecordingSession
-from lerobot_isaac_recorder.schema import EpisodeSchema
+from robot_data_recorder.config import RecordingConfig
+from robot_data_recorder.d435 import D435Stream
+from robot_data_recorder.dual_writer import DualWriter
+from robot_data_recorder.recorder import RecordingSession
+from robot_data_recorder.schema import EpisodeSchema
 
 __all__ = [
     "RecordingConfig",

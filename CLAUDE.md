@@ -1,4 +1,4 @@
-# lerobot-isaac-recorder — Package Orientation
+# robot-data-recorder — Package Orientation
 
 **Role:** Hardware-facing recorder. D435 camera + SO-101 teleop → dual-write episodes to
 LeRobot Parquet (policy training) and stable-worldmodel HDF5 (world-model training).
@@ -25,14 +25,14 @@ Both outputs use the same in-memory episode buffer (Path B dual-write).
 
 | File | Role |
 |------|------|
-| `src/lerobot_isaac_recorder/__init__.py` | Public exports + `__version__` |
-| `src/lerobot_isaac_recorder/schema.py` | `EpisodeSchema`, `validate_episode_buffer`, `compute_ep_offset`, `lerobot_features_dict` |
-| `src/lerobot_isaac_recorder/config.py` | `RecordingConfig` dataclass with `from_yaml()` / `to_dict()` |
-| `src/lerobot_isaac_recorder/d435.py` | `D435Stream`, `MockD435Stream`, `make_d435()` factory |
-| `src/lerobot_isaac_recorder/so101_teleop.py` | `SO101Teleop`, `MockSO101Teleop` |
-| `src/lerobot_isaac_recorder/dual_writer.py` | `DualWriter` — parallel Parquet + HDF5 write |
-| `src/lerobot_isaac_recorder/recorder.py` | `EpisodeBuffer`, `RecordingSession`, `MockRecordingSession` |
-| `src/lerobot_isaac_recorder/cli.py` | argparse CLI, `main()` entrypoint |
+| `src/robot_data_recorder/__init__.py` | Public exports + `__version__` |
+| `src/robot_data_recorder/schema.py` | `EpisodeSchema`, `validate_episode_buffer`, `compute_ep_offset`, `lerobot_features_dict` |
+| `src/robot_data_recorder/config.py` | `RecordingConfig` dataclass with `from_yaml()` / `to_dict()` |
+| `src/robot_data_recorder/d435.py` | `D435Stream`, `MockD435Stream`, `make_d435()` factory |
+| `src/robot_data_recorder/so101_teleop.py` | `SO101Teleop`, `MockSO101Teleop` |
+| `src/robot_data_recorder/dual_writer.py` | `DualWriter` — parallel Parquet + HDF5 write |
+| `src/robot_data_recorder/recorder.py` | `EpisodeBuffer`, `RecordingSession`, `MockRecordingSession` |
+| `src/robot_data_recorder/cli.py` | argparse CLI, `main()` entrypoint |
 | `tests/conftest.py` | Pytest markers for hardware deps |
 | `tests/test_imports.py` | Clean importability without heavy deps |
 | `tests/test_schema.py` | Schema dataclass + validation + helpers |
@@ -68,19 +68,19 @@ Same pattern in `so101_teleop.py` (`_HAS_LEROBOT`) and `dual_writer.py`
 ## Public API
 
 ```python
-from lerobot_isaac_recorder import (
+from robot_data_recorder import (
     RecordingConfig,   # session config
     RecordingSession,  # orchestrator
     DualWriter,        # parallel writer
     D435Stream,        # camera (soft-dep)
     EpisodeSchema,     # schema declaration
 )
-from lerobot_isaac_recorder.d435 import make_d435           # factory
-from lerobot_isaac_recorder.so101_teleop import MockSO101Teleop
-from lerobot_isaac_recorder.schema import validate_episode_buffer
+from robot_data_recorder.d435 import make_d435           # factory
+from robot_data_recorder.so101_teleop import MockSO101Teleop
+from robot_data_recorder.schema import validate_episode_buffer
 ```
 
-CLI entrypoint: `lerobot-isaac-record` (declared in `pyproject.toml`).
+CLI entrypoint: `robot-data-record` (declared in `pyproject.toml`).
 
 ---
 
@@ -114,7 +114,7 @@ See `schema.py` → `EpisodeSchema`. Key fields:
 ## Testing
 
 ```bash
-cd packages/lerobot-isaac-recorder
+cd packages/robot-data-recorder
 python3 -m pytest tests/ -q       # all tests, no hardware required
 python3 -m pytest tests/ -v       # verbose
 ```
@@ -127,7 +127,7 @@ No hardware or optional deps needed. All tests use mocks.
 
 ### Add a new camera type
 
-1. Create `src/lerobot_isaac_recorder/my_camera.py` with `start()`, `read_frame()`, `stop()`.
+1. Create `src/robot_data_recorder/my_camera.py` with `start()`, `read_frame()`, `stop()`.
 2. Add `MyCameraStream` and `MockMyCameraStream` following `d435.py` pattern.
 3. Update `RecordingConfig` with new camera params.
 4. Wire into `cli.py` behind a `--camera-type` flag.
@@ -148,7 +148,5 @@ so CI skips it automatically.
 
 ## Source-of-Truth Pointers
 
-- Build plan: `/home/koen/tools/claude_code/plans/2026-05-06-lerobot-isaac-workspace-plan.md` §14
-- Research: `05-Wiki/project-context/research/2026-05-07-dual-recording-lerobot-leworldmodel/details.md`
 - ADR-0003 (soft-import): `../../docs/adr/0003-soft-import-discipline.md`
 - Workspace ARCHITECTURE.md: `../../docs/ARCHITECTURE.md`
