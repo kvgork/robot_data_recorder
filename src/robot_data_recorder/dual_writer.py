@@ -110,8 +110,8 @@ class DualWriter:
 
             w, h = self._config.resolution
             features = lerobot_features_dict(
-                action_dim=7,  # SO-101: 6 joints + gripper
-                state_dim=7,
+                action_dim=6,  # SO-101: 5 joints + gripper (lerobot motor count)
+                state_dim=6,
                 image_shape=(3, h, w),  # channels-first for LeRobot
             )
             self._lerobot_dataset = LeRobotDataset.create(

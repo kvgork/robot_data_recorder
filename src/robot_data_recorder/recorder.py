@@ -185,10 +185,10 @@ class RecordingSession:
             arm_state = self._teleop.read_state()
             action = self._teleop.read_action()
 
-            # Build state vector: [joint_pos(6), gripper(1)]
-            state_vec = np.concatenate(
-                [arm_state["joint_pos"], [arm_state["gripper"]]]
-            ).astype(np.float32)
+            # State vector = full motor positions (5 joints + gripper).
+            # lerobot 0.4.4 already includes the gripper in joint_pos, so
+            # we copy the array directly without an extra concat.
+            state_vec = np.asarray(arm_state["joint_pos"], dtype=np.float32)
 
             buf.pixels.append(frame["rgb"])
             buf.action.append(action)
@@ -213,8 +213,8 @@ class RecordingSession:
 
         for t in range(n_steps):
             buf.pixels.append(rng.integers(0, 255, (480, 640, 3), dtype=np.uint8))
-            buf.action.append(rng.standard_normal(7).astype(np.float32))
-            state = rng.standard_normal(7).astype(np.float32)
+            buf.action.append(rng.standard_normal(6).astype(np.float32))
+            state = rng.standard_normal(6).astype(np.float32)
             buf.state.append(state)
             buf.proprio.append(state.copy())
             buf.done.append(t == n_steps - 1)
