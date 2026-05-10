@@ -173,11 +173,13 @@ class SO101Teleop:
         }
 
     def read_action(self) -> np.ndarray:
-        """Read the current commanded action.
+        """Read the leader action and command the follower to mirror it.
 
-        With a leader connected the action is the leader's current joint
-        positions. Without a leader, the follower's own current state is
-        returned as a no-op action so downstream buffers stay aligned.
+        With a leader connected this is the actual teleoperation step:
+        the leader's current joint positions are read, forwarded to the
+        follower via ``send_action``, and returned as a numpy array for
+        the recording buffer. Without a leader the follower's own state
+        is returned as a no-op so downstream buffers stay aligned.
 
         Returns
         -------
@@ -188,7 +190,12 @@ class SO101Teleop:
             raise RuntimeError("Call start() before read_action()")
 
         if self._leader is not None:
-            raw = self._leader.get_action()
+            action_dict = self._leader.get_action()
+            # Mirror leader → follower; this is what makes the arms move.
+            # send_action returns the (potentially clipped) action that was
+            # actually written to the motors — log/record that one.
+            sent = self._robot.send_action(action_dict)
+            raw = sent if sent is not None else action_dict
         else:
             raw = self._robot.get_observation()
 
