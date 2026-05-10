@@ -131,6 +131,19 @@ with RecordingSession(cfg, camera=cam, teleop=teleop, writer=None) as session:
         print(f"Episode {ep_idx}: {len(buf.pixels)} steps")
 ```
 
+### Pre-flight hardware check
+
+Before the first real-hardware recording session, verify env vars, serial
+ports, dialout group membership, and the RealSense device:
+
+```bash
+pixi run robot-data-check              # quick checks, no hardware connect
+pixi run robot-data-check --connect    # also try lerobot SO-101 connect()
+pixi run robot-data-check --json       # machine-readable output
+```
+
+Exits 0 when everything required is reachable, 1 when a blocker is found.
+
 ### Real hardware (D435 + SO-101)
 
 Hardware ports/serial pulled from env vars (set via `pixi run setup-env` or

@@ -96,9 +96,14 @@ from robot_data_recorder.so101_teleop import MockSO101Teleop
 from robot_data_recorder.schema import validate_episode_buffer
 ```
 
-CLI entrypoint: `robot-data-record` (declared in `pyproject.toml`).
-Lives in workspace pixi env — invoke via `pixi shell` first, or prefix with
-`pixi run robot-data-record ...`. Plain shell gives `command not found`.
+CLI entrypoints (declared in `pyproject.toml`):
+- `robot-data-record` — main recording loop.
+- `robot-data-check` — pre-flight hardware check (env vars, ttys, dialout
+  group, RealSense enumeration, optional `--connect` to attempt SO101
+  follower/leader connect via lerobot).
+
+Both live in the workspace pixi env — invoke via `pixi shell` first, or prefix
+with `pixi run`. Plain shell gives `command not found`.
 
 ---
 
