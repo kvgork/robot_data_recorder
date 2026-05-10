@@ -1,25 +1,44 @@
 # packages/robot-data-recorder/pixi.toml
-# DORMANT in monorepo mode — only active after spinout via git subtree split.
-# In monorepo mode the root pixi.toml governs all environments.
+#
+# Active pixi env for the recorder package. Includes full hardware deps
+# (pyrealsense2 + lerobot + stable-worldmodel) so `pixi run robot-data-record`
+# works for real D435 + SO-101 sessions in `--format=dual` (Parquet + HDF5).
+#
+# In monorepo mode the workspace-root pixi.toml installs the same deps. This
+# package-local env is used when invoking from inside this directory.
 
 [workspace]
 name = "robot-data-recorder"
 channels = ["conda-forge"]
 platforms = ["linux-64"]
 
+[system-requirements]
+cuda = "12"
+
 [dependencies]
-python = ">=3.10,<3.12"
+python = "3.12.*"
 pip = "*"
+numpy = "*"
+h5py = "*"
+pyyaml = "*"
+# Real D435 camera support
+pyrealsense2 = "*"
+# Torch via conda for CUDA compat (matches workspace root pixi.toml)
+pytorch = ">=2.2.1,<2.8.0"
+torchvision = ">=0.21.0,<0.23.0"
+setuptools = ">=71,<81"
+packaging = ">=24.2,<26.0"
 
 [pypi-dependencies]
 robot-data-recorder = { path = ".", editable = true }
+# LeRobot Parquet writer (parquet / dual format)
+lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
+# LeWM HDF5 writer (hdf5 / dual format)
+stable-worldmodel = "*"
 
 [feature.dev.dependencies]
 pytest = "*"
 hatchling = "*"
-numpy = "*"
-h5py = "*"
-pyyaml = "*"
 
 [environments]
 default = ["dev"]
