@@ -100,6 +100,58 @@ def test_parser_depth_flag_off_by_default() -> None:
 
 
 # ------------------------------------------------------------------ #
+# Env-var defaults (LERO_FOLLOWER_PORT / LERO_LEADER_PORT / LERO_CAM_SERIAL)
+# ------------------------------------------------------------------ #
+
+def test_parser_arm_port_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LERO_FOLLOWER_PORT", "/dev/test-follower")
+    monkeypatch.delenv("LERO_LEADER_PORT", raising=False)
+    monkeypatch.delenv("LERO_CAM_SERIAL", raising=False)
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run"])
+    assert args.arm_port == "/dev/test-follower"
+
+
+def test_parser_leader_port_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LERO_LEADER_PORT", "/dev/test-leader")
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run"])
+    assert args.leader_port == "/dev/test-leader"
+
+
+def test_parser_camera_serial_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LERO_CAM_SERIAL", "TESTSERIAL123")
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run"])
+    assert args.camera_serial == "TESTSERIAL123"
+
+
+def test_parser_arm_port_fallback_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LERO_FOLLOWER_PORT", raising=False)
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run"])
+    assert args.arm_port == "/dev/ttyUSB0"
+
+
+def test_parser_leader_port_none_when_env_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LERO_LEADER_PORT", raising=False)
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run"])
+    assert args.leader_port is None
+
+
+def test_parser_cli_overrides_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LERO_FOLLOWER_PORT", "/dev/from-env")
+    parser = _build_parser()
+    args = parser.parse_args(["--repo-id=test/run", "--arm-port=/dev/from-cli"])
+    assert args.arm_port == "/dev/from-cli"
+
+
+# ------------------------------------------------------------------ #
 # --dry-run returns 0
 # ------------------------------------------------------------------ #
 

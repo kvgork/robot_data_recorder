@@ -12,9 +12,30 @@ and to make ``to_dict()`` produce a clean printout for ``--dry-run``.
 from __future__ import annotations
 
 import dataclasses
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+
+def _env_follower_port() -> str:
+    """Default follower-arm serial port. Reads ``LERO_FOLLOWER_PORT`` env var.
+
+    Set via ``pixi run setup-env`` (writes ``.env``) or exported in ``~/.bashrc``.
+    """
+    return os.environ.get("LERO_FOLLOWER_PORT", "/dev/ttyUSB0")
+
+
+def _env_leader_port() -> str | None:
+    """Default leader-arm serial port. Reads ``LERO_LEADER_PORT`` env var."""
+    val = os.environ.get("LERO_LEADER_PORT")
+    return val or None
+
+
+def _env_camera_serial() -> str | None:
+    """Default D435 camera serial. Reads ``LERO_CAM_SERIAL`` env var."""
+    val = os.environ.get("LERO_CAM_SERIAL")
+    return val or None
 
 
 @dataclass
@@ -38,10 +59,13 @@ class RecordingConfig:
         Recording frame rate (Hz). Default: 30.
     arm_port:
         Serial port for the SO-101 follower arm (e.g. ``/dev/ttyUSB0``).
+        Default reads ``LERO_FOLLOWER_PORT`` env var, falling back to ``/dev/ttyUSB0``.
     leader_port:
         Serial port for the SO-101 leader arm. ``None`` disables leader control.
+        Default reads ``LERO_LEADER_PORT`` env var.
     camera_serial:
         RealSense D435 serial number. ``None`` / ``"AUTO"`` selects first device.
+        Default reads ``LERO_CAM_SERIAL`` env var.
     resolution:
         Camera resolution as ``(width, height)`` tuple. Default: ``(640, 480)``.
     enable_depth:
@@ -58,9 +82,9 @@ class RecordingConfig:
     output_dir: str = "./datasets"
     task: str = "unspecified"
     fps: int = 30
-    arm_port: str = "/dev/ttyUSB0"
-    leader_port: str | None = None
-    camera_serial: str | None = None
+    arm_port: str = field(default_factory=_env_follower_port)
+    leader_port: str | None = field(default_factory=_env_leader_port)
+    camera_serial: str | None = field(default_factory=_env_camera_serial)
     resolution: tuple[int, int] = field(default_factory=lambda: (640, 480))
     enable_depth: bool = False
     max_steps: int = 200

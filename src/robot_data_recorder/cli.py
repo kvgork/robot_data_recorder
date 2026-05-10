@@ -16,11 +16,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Optional
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    env_follower = os.environ.get("LERO_FOLLOWER_PORT", "/dev/ttyUSB0")
+    env_leader = os.environ.get("LERO_LEADER_PORT") or None
+    env_cam = os.environ.get("LERO_CAM_SERIAL") or None
     p = argparse.ArgumentParser(
         prog="robot-data-record",
         description=(
@@ -79,9 +83,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--camera-serial",
-        default=None,
+        default=env_cam,
         metavar="SERIAL",
-        help="RealSense D435 serial number. 'AUTO' or omit to use first device.",
+        help=(
+            "RealSense D435 serial number. 'AUTO' or omit to use first device. "
+            "Default reads $LERO_CAM_SERIAL."
+        ),
     )
     p.add_argument(
         "--depth",
@@ -93,15 +100,21 @@ def _build_parser() -> argparse.ArgumentParser:
     # Arm
     p.add_argument(
         "--arm-port",
-        default="/dev/ttyUSB0",
+        default=env_follower,
         metavar="PORT",
-        help="Serial port for SO-101 follower arm (default: /dev/ttyUSB0)",
+        help=(
+            "Serial port for SO-101 follower arm. "
+            "Default reads $LERO_FOLLOWER_PORT, falling back to /dev/ttyUSB0."
+        ),
     )
     p.add_argument(
         "--leader-port",
-        default=None,
+        default=env_leader,
         metavar="PORT",
-        help="Serial port for SO-101 leader arm. Omit for scripted/replay mode.",
+        help=(
+            "Serial port for SO-101 leader arm. Omit for scripted/replay mode. "
+            "Default reads $LERO_LEADER_PORT."
+        ),
     )
     p.add_argument(
         "--max-steps",
