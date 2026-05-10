@@ -65,6 +65,22 @@ Same pattern in `so101_teleop.py` (`_HAS_LEROBOT`) and `dual_writer.py`
 
 ---
 
+## Hardware Env Vars
+
+`RecordingConfig` and the CLI read these at instantiation time
+(written by `pixi run setup-env` or exported in `~/.bashrc`):
+
+| Env var | Field / flag | Fallback |
+|---------|--------------|----------|
+| `LERO_FOLLOWER_PORT` | `arm_port` / `--arm-port` | `/dev/ttyUSB0` |
+| `LERO_LEADER_PORT` | `leader_port` / `--leader-port` | `None` |
+| `LERO_CAM_SERIAL` | `camera_serial` / `--camera-serial` | `None` (= AUTO) |
+
+Helpers live in `config.py`: `_env_follower_port`, `_env_leader_port`,
+`_env_camera_serial`. Explicit constructor args / CLI flags override env values.
+
+---
+
 ## Public API
 
 ```python

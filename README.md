@@ -120,18 +120,35 @@ with RecordingSession(cfg, camera=cam, teleop=teleop, writer=None) as session:
 
 ### Real hardware (D435 + SO-101)
 
+Hardware ports/serial pulled from env vars (set via `pixi run setup-env` or
+exported in `~/.bashrc`):
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `LERO_FOLLOWER_PORT` | `/dev/ttyUSB0` | SO-101 follower arm serial port |
+| `LERO_LEADER_PORT` | unset | SO-101 leader arm serial port |
+| `LERO_CAM_SERIAL` | unset (= AUTO) | RealSense D435 serial number |
+
+When set, CLI flags `--arm-port`, `--leader-port`, `--camera-serial` and
+`RecordingConfig` defaults pick them up automatically:
+
 ```bash
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
 robot-data-record \
   --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
-  --camera-serial=AUTO \
-  --resolution=640x480 \
-  --fps=30 \
-  --task="pick and place cube" \
-  --output-dir=./datasets
+  --task="pick and place cube"
+```
+
+Override on command line if needed:
+
+```bash
+robot-data-record \
+  --repo-id=myuser/so101-pickplace \
+  --arm-port=<follower-tty> \
+  --leader-port=<leader-tty> \
+  --camera-serial=<d435-serial>
 ```
 
 ---
@@ -149,9 +166,9 @@ class RecordingConfig:
     output_dir: str = "./datasets"
     task: str = "unspecified"
     fps: int = 30
-    arm_port: str = "/dev/ttyUSB0"
-    leader_port: str | None = None
-    camera_serial: str | None = None
+    arm_port: str = field(default_factory=_env_follower_port)   # $LERO_FOLLOWER_PORT
+    leader_port: str | None = field(default_factory=_env_leader_port)  # $LERO_LEADER_PORT
+    camera_serial: str | None = field(default_factory=_env_camera_serial)  # $LERO_CAM_SERIAL
     resolution: tuple[int, int] = (640, 480)
     enable_depth: bool = False
     max_steps: int = 200

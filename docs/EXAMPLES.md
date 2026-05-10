@@ -46,18 +46,26 @@ bash scripts/install_lerobot.sh
 pip install stable-worldmodel
 ```
 
+**Hardware env vars** (set by `pixi run setup-env` or exported in `~/.bashrc`):
+```bash
+export LERO_FOLLOWER_PORT=<follower-tty>   # SO-101 follower serial port
+export LERO_LEADER_PORT=<leader-tty>       # SO-101 leader serial port
+export LERO_CAM_SERIAL=<d435-serial>       # RealSense D435 serial number
+```
+
+When set, `--arm-port`, `--leader-port`, `--camera-serial` (and the matching
+`RecordingConfig` fields) default to those values — omit them to use env defaults.
+
 **Wired through the workspace meta CLI (preferred):**
 ```bash
 lerobot-isaac record \
   --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
-  --camera-serial=AUTO \
   --fps=30 \
   --task="pick and place cube" \
   --output-dir=./datasets
+# arm/leader/camera resolved from $LERO_FOLLOWER_PORT / $LERO_LEADER_PORT / $LERO_CAM_SERIAL
 ```
 
 **Direct package CLI:**
@@ -66,25 +74,22 @@ robot-data-record \
   --repo-id=myuser/so101-pickplace \
   --num-episodes=50 \
   --format=dual \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1 \
   --output-dir=./datasets \
   --task="pick and place cube"
 ```
 
-**Python API equivalent:**
+**Python API equivalent (env defaults):**
 ```python
 from robot_data_recorder import RecordingConfig, RecordingSession
 from robot_data_recorder.d435 import make_d435
 from robot_data_recorder.dual_writer import DualWriter
 from robot_data_recorder.so101_teleop import SO101Teleop
 
+# arm_port / leader_port / camera_serial pulled from env vars
 cfg = RecordingConfig(
     repo_id="myuser/so101-pickplace",
     num_episodes=50,
     format="dual",
-    arm_port="/dev/ttyUSB0",
-    leader_port="/dev/ttyUSB1",
     output_dir="./datasets",
     task="pick and place cube",
 )
@@ -110,12 +115,11 @@ print(f"HDF5:    {paths.get('hdf5')}")
 When you only want to train a policy and skip world-model data collection:
 
 ```bash
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
 robot-data-record \
   --repo-id=myuser/so101-pickplace \
   --format=parquet \
-  --num-episodes=50 \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1
+  --num-episodes=50
 ```
 
 Requires: `pyrealsense2` + `lerobot`.
@@ -128,12 +132,11 @@ Does NOT require: `stable-worldmodel`.
 When you only want to train a world model and skip LeRobot policy data:
 
 ```bash
+# Uses $LERO_FOLLOWER_PORT, $LERO_LEADER_PORT, $LERO_CAM_SERIAL
 robot-data-record \
   --repo-id=myuser/so101-pickplace \
   --format=hdf5 \
-  --num-episodes=50 \
-  --arm-port=/dev/ttyUSB0 \
-  --leader-port=/dev/ttyUSB1
+  --num-episodes=50
 ```
 
 Requires: `pyrealsense2` + `stable-worldmodel`.
@@ -201,8 +204,8 @@ repo_id: myuser/so101-pickplace
 num_episodes: 50
 format: dual
 fps: 30
-arm_port: /dev/ttyUSB0
-leader_port: /dev/ttyUSB1
+arm_port: /dev/ttyUSB0       # or omit to use $LERO_FOLLOWER_PORT
+leader_port: /dev/ttyUSB1    # or omit to use $LERO_LEADER_PORT
 resolution: [640, 480]
 task: "pick and place cube"
 max_steps: 300
