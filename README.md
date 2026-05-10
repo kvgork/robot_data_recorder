@@ -73,6 +73,19 @@ pip install stable-worldmodel
 
 ## Quick Example
 
+> **Requires pixi env.** The `robot-data-record` console script lives in the
+> workspace pixi environment. Either drop into a shell first:
+> ```bash
+> pixi shell
+> robot-data-record ...
+> ```
+> or prefix each call with `pixi run`:
+> ```bash
+> pixi run robot-data-record ...
+> ```
+> Plain `robot-data-record` outside pixi gives `command not found`. All bash
+> examples below assume `pixi shell` is already active.
+
 ### Dry-run (no hardware, no deps)
 
 ```bash

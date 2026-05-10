@@ -97,6 +97,8 @@ from robot_data_recorder.schema import validate_episode_buffer
 ```
 
 CLI entrypoint: `robot-data-record` (declared in `pyproject.toml`).
+Lives in workspace pixi env — invoke via `pixi shell` first, or prefix with
+`pixi run robot-data-record ...`. Plain shell gives `command not found`.
 
 ---
 

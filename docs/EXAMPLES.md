@@ -1,5 +1,15 @@
 # robot-data-recorder — Examples
 
+> **Requires pixi env.** The `robot-data-record` console script is installed
+> into the workspace pixi environment. Activate first:
+> ```bash
+> pixi shell        # then call robot-data-record directly
+> # or
+> pixi run robot-data-record ...   # one-shot prefix
+> ```
+> Plain `robot-data-record` outside pixi gives `command not found`. All bash
+> examples below assume `pixi shell` is active.
+
 ---
 
 ## 1. Minimal Dry-Run (no hardware, no deps)
