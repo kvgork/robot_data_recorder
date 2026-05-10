@@ -119,9 +119,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--max-steps",
         type=int,
-        default=200,
+        default=18000,
         metavar="N",
-        help="Maximum steps per episode (default: 200). Used as episode timeout.",
+        help=(
+            "Hard safety ceiling on episode length (default: 18000 = 10 min "
+            "@ 30 Hz). Episodes normally end when the operator presses "
+            "SPACE/ENTER; this cap only triggers if no key is pressed."
+        ),
     )
 
     # Session control
@@ -233,10 +237,17 @@ def main(argv: Optional[list[str]] = None) -> int:
                 f"[robot-data-record] Recording episode {ep_idx + 1}/{cfg.num_episodes} ..."
             )
             buf = session.record_episode(ep_idx)
+            if session.abort_requested and len(buf.pixels) == 0:
+                # Operator aborted before a single frame landed — discard.
+                print("[robot-data-record] Aborted before any frames recorded.")
+                break
             session.save_episode(buf)
             print(
                 f"[robot-data-record] Episode {ep_idx + 1} saved ({len(buf.pixels)} steps)"
             )
+            if session.abort_requested:
+                print("[robot-data-record] Abort requested; stopping session.")
+                break
 
     paths = writer.finalize()
     print("[robot-data-record] Done. Output paths:")

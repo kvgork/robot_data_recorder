@@ -40,11 +40,18 @@ from typing import TYPE_CHECKING, Any, Optional
 import numpy as np
 
 from robot_data_recorder.config import RecordingConfig
+from robot_data_recorder.keylistener import KeyListener, NullKeyListener
 
 if TYPE_CHECKING:
     from robot_data_recorder.d435 import D435Stream, MockD435Stream
     from robot_data_recorder.dual_writer import DualWriter
     from robot_data_recorder.so101_teleop import MockSO101Teleop, SO101Teleop
+
+
+# Keys that mark "this episode is done"
+_END_EPISODE_KEYS = frozenset({" ", "\n", "\r", "s", "S"})
+# Keys that mark "abort the whole session"
+_ABORT_KEYS = frozenset({"q", "Q", "\x03"})  # Ctrl-C as a printable byte
 
 
 @dataclass
@@ -120,11 +127,25 @@ class RecordingSession:
         camera: Any,
         teleop: Any,
         writer: Optional["DualWriter"],
+        key_listener: Optional[Any] = None,
     ) -> None:
         self._config = config
         self._camera = camera
         self._teleop = teleop
         self._writer = writer
+        # Allow injection for tests; default behaviour picks the right
+        # backend based on whether stdin is a tty.
+        if key_listener is not None:
+            self._key_listener = key_listener
+        else:
+            kl = KeyListener()
+            self._key_listener = kl if kl.is_tty else NullKeyListener()
+        self._abort_requested = False
+
+    @property
+    def abort_requested(self) -> bool:
+        """True after the operator pressed an abort key (``q``)."""
+        return self._abort_requested
 
     # ------------------------------------------------------------------ #
     # Context manager
@@ -133,9 +154,14 @@ class RecordingSession:
     def __enter__(self) -> "RecordingSession":
         self._camera.start()
         self._teleop.start()
+        self._key_listener.__enter__()
         return self
 
     def __exit__(self, *_: object) -> None:
+        try:
+            self._key_listener.__exit__(None, None, None)
+        except Exception:
+            pass
         try:
             self._camera.stop()
         except Exception:
@@ -158,8 +184,11 @@ class RecordingSession:
         """Record one episode.
 
         Ticks at ``1/fps``, reads camera + arm, appends to buffer until
-        ``max_steps`` is reached.  In dry-run mode, returns a synthetic
-        5-step episode without touching hardware.
+        the operator presses SPACE / Enter (end episode) or ``q`` (abort
+        session). ``max_steps`` is still honoured as a hard safety
+        ceiling so a forgotten terminal cannot record forever. When stdin
+        is not a tty the key listener is a no-op and the loop falls back
+        to ``max_steps``.
 
         Parameters
         ----------
@@ -178,7 +207,17 @@ class RecordingSession:
         period = 1.0 / self._config.fps
         max_steps = self._config.max_steps
 
+        if getattr(self._key_listener, "is_tty", False):
+            print(
+                f"[robot-data-record] Episode {episode_idx + 1}: "
+                "press SPACE/ENTER to save, 'q' to abort session "
+                f"(safety cap: {max_steps} steps)."
+            )
+
+        ended_by_key = False
+        last_step = 0
         for step in range(max_steps):
+            last_step = step
             t0 = time.monotonic()
 
             frame = self._camera.read_frame()
@@ -194,15 +233,32 @@ class RecordingSession:
             buf.action.append(action)
             buf.state.append(state_vec)
             buf.proprio.append(state_vec.copy())  # proprio = state for SO-101
-            buf.done.append(step == max_steps - 1)
+            # Will fix the last entry to True after the loop.
+            buf.done.append(False)
             buf.timestamp.append(float(arm_state["timestamp"]))
             buf.reward.append(0.0)
+
+            key = self._key_listener.poll()
+            if key in _END_EPISODE_KEYS:
+                ended_by_key = True
+                break
+            if key in _ABORT_KEYS:
+                self._abort_requested = True
+                ended_by_key = True
+                break
 
             elapsed = time.monotonic() - t0
             sleep_time = period - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
+        if buf.done:
+            buf.done[-1] = True
+        if not ended_by_key and last_step == max_steps - 1:
+            print(
+                f"[robot-data-record] Episode {episode_idx + 1}: hit max_steps "
+                f"({max_steps}); auto-saving. Increase --max-steps for longer episodes."
+            )
         return buf
 
     @staticmethod

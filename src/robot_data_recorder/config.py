@@ -71,7 +71,10 @@ class RecordingConfig:
     enable_depth:
         Whether to capture the D435 depth stream. Default: ``False``.
     max_steps:
-        Maximum steps per episode (for scaffolding / dry-run). Default: ``200``.
+        Hard safety ceiling on episode length. The recorder normally ends an
+        episode when the operator presses SPACE/ENTER; ``max_steps`` only
+        kicks in if no key is pressed. Default: ``18000`` (= 10 minutes
+        @ 30 Hz).
     dry_run:
         If ``True``, bypass all hardware and write nothing. Default: ``False``.
     """
@@ -87,7 +90,7 @@ class RecordingConfig:
     camera_serial: str | None = field(default_factory=_env_camera_serial)
     resolution: tuple[int, int] = field(default_factory=lambda: (640, 480))
     enable_depth: bool = False
-    max_steps: int = 200
+    max_steps: int = 18000
     dry_run: bool = False
 
     # ------------------------------------------------------------------ #
