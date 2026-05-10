@@ -177,11 +177,14 @@ class DualWriter:
         n_steps = ep["pixels"].shape[0]
 
         for t in range(n_steps):
+            # lerobot >=0.4 validates frames against `features` only. The
+            # default features (timestamp, frame_index, episode_index, ...)
+            # are auto-populated by add_frame from `frame_index / fps`, so
+            # passing `timestamp` here triggers an "Extra features" error.
             frame: dict[str, Any] = {
                 "observation.images.d435_rgb": ep["pixels"][t],
                 "observation.state": ep["state"][t],
                 "action": ep["action"][t],
-                "timestamp": float(ep["timestamp"][t]),
                 "task": self._config.task,
             }
             dataset.add_frame(frame)
