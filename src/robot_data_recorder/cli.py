@@ -233,6 +233,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     with RecordingSession(cfg, camera=camera, teleop=teleop, writer=writer) as session:
         for ep_idx in range(cfg.num_episodes):
+            if not session.wait_for_start(ep_idx, cfg.num_episodes):
+                print("[robot-data-record] Session aborted before recording.")
+                break
             print(
                 f"[robot-data-record] Recording episode {ep_idx + 1}/{cfg.num_episodes} ..."
             )

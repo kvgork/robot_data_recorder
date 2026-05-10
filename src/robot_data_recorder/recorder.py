@@ -33,6 +33,7 @@ Usage::
 
 from __future__ import annotations
 
+import sys
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional
@@ -50,6 +51,8 @@ if TYPE_CHECKING:
 
 # Keys that mark "this episode is done"
 _END_EPISODE_KEYS = frozenset({" ", "\n", "\r", "s", "S"})
+# Keys that mark "start the next episode"
+_START_EPISODE_KEYS = _END_EPISODE_KEYS
 # Keys that mark "abort the whole session"
 _ABORT_KEYS = frozenset({"q", "Q", "\x03"})  # Ctrl-C as a printable byte
 
@@ -146,6 +149,57 @@ class RecordingSession:
     def abort_requested(self) -> bool:
         """True after the operator pressed an abort key (``q``)."""
         return self._abort_requested
+
+    # ------------------------------------------------------------------ #
+    # Inter-episode gate
+    # ------------------------------------------------------------------ #
+
+    def wait_for_start(self, episode_idx: int, total: int) -> bool:
+        """Block until the operator confirms the next episode should begin.
+
+        Used between episodes so the operator can reset the workspace
+        before recording starts. SPACE / ENTER / ``s`` starts the next
+        episode; ``q`` aborts the whole session. Non-tty environments
+        fall through immediately so scripted runs are unchanged.
+
+        Returns
+        -------
+        bool
+            ``True`` if recording should proceed, ``False`` if the
+            operator asked to abort.
+        """
+        if self._config.dry_run:
+            return True
+        if not getattr(self._key_listener, "is_tty", False):
+            return True
+
+        prompt = (
+            f"[robot-data-record] Reset workspace, then press SPACE/ENTER to "
+            f"start episode {episode_idx + 1}/{total} (q to abort)... "
+        )
+        # Use sys.stdout for an inline prompt without an extra newline
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
+        try:
+            while True:
+                key = self._key_listener.poll(timeout=0.05)
+                if key is None:
+                    continue
+                if key in _ABORT_KEYS:
+                    self._abort_requested = True
+                    sys.stdout.write("aborted.\n")
+                    sys.stdout.flush()
+                    return False
+                if key in _START_EPISODE_KEYS:
+                    sys.stdout.write("go.\n")
+                    sys.stdout.flush()
+                    return True
+                # Ignore everything else — keep waiting.
+        except KeyboardInterrupt:
+            self._abort_requested = True
+            sys.stdout.write("aborted.\n")
+            sys.stdout.flush()
+            return False
 
     # ------------------------------------------------------------------ #
     # Context manager
