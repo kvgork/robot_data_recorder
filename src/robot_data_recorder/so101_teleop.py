@@ -47,8 +47,19 @@ except ImportError:
     _HAS_LEROBOT = False
 # --------------------------------------------------------------------------- #
 
-_SO101_DOF = 6  # 6 revolute joints
-_SO101_ACTION_DIM = 7  # 6 joints + gripper
+# Motor order matches lerobot's SO101 follower/leader observation dicts.
+# 5 revolute joints + gripper; gripper is treated as the 6th "motor" by lerobot.
+_SO101_MOTORS: tuple[str, ...] = (
+    "shoulder_pan",
+    "shoulder_lift",
+    "elbow_flex",
+    "wrist_flex",
+    "wrist_roll",
+    "gripper",
+)
+_SO101_KEYS: tuple[str, ...] = tuple(f"{m}.pos" for m in _SO101_MOTORS)
+_SO101_DOF = len(_SO101_MOTORS)        # 6 — full motor vector
+_SO101_ACTION_DIM = len(_SO101_MOTORS)  # 6 — joint+gripper positions
 
 
 class SO101Teleop:
@@ -70,7 +81,8 @@ class SO101Teleop:
     ) -> None:
         self._arm_port = arm_port
         self._leader_port = leader_port
-        self._robot = None
+        self._robot = None       # SO101Follower
+        self._leader = None      # SO101Leader (or None)
         self._started = False
 
     # ------------------------------------------------------------------ #
@@ -91,71 +103,114 @@ class SO101Teleop:
                 "Install with: bash scripts/install_lerobot.sh"
             )
 
-        # Real implementation would call lerobot's robot factory here.
-        # Scaffolding: wrap in try/except so tests with mocked lerobot pass.
+        # lerobot >=0.4.4 dropped the legacy `make_robot` factory.
+        # Use the per-robot config + class pair directly.
         try:
-            from lerobot.common.robot_devices.robots.factory import make_robot  # noqa: PLC0415
+            from lerobot.robots.so_follower import (  # noqa: PLC0415
+                SO101Follower,
+                SO101FollowerConfig,
+            )
 
-            cfg = {
-                "robot_type": "so101",
-                "port": self._arm_port,
-            }
-            if self._leader_port:
-                cfg["leader_port"] = self._leader_port
-
-            self._robot = make_robot(cfg)
+            self._robot = SO101Follower(
+                SO101FollowerConfig(port=self._arm_port, id="so101_follower")
+            )
             self._robot.connect()
         except Exception as exc:
             raise RuntimeError(
-                f"Failed to connect to SO-101 on {self._arm_port}: {exc}"
+                f"Failed to connect to SO-101 follower on {self._arm_port}: {exc}"
             ) from exc
+
+        if self._leader_port:
+            try:
+                from lerobot.teleoperators.so_leader import (  # noqa: PLC0415
+                    SO101Leader,
+                    SO101LeaderConfig,
+                )
+
+                self._leader = SO101Leader(
+                    SO101LeaderConfig(port=self._leader_port, id="so101_leader")
+                )
+                self._leader.connect()
+            except Exception as exc:
+                # Roll back follower so the next attempt starts clean.
+                try:
+                    self._robot.disconnect()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    f"Failed to connect to SO-101 leader on {self._leader_port}: {exc}"
+                ) from exc
 
         self._started = True
 
     def read_state(self) -> dict:
-        """Read current arm state.
+        """Read current follower-arm state.
 
         Returns
         -------
         dict with keys:
-            ``joint_pos`` : np.ndarray float32 (6,) — joint positions in radians
-            ``joint_vel`` : np.ndarray float32 (6,) — joint velocities
-            ``gripper``   : float — gripper opening (0.0 = closed, 1.0 = open)
-            ``timestamp`` : float — monotonic clock in seconds
+            ``joint_pos`` : np.ndarray float32 (6,) — full motor positions
+                (5 joints + gripper) in the order :data:`_SO101_MOTORS`.
+            ``joint_vel`` : np.ndarray float32 (6,) — zeros (lerobot SO101
+                follower does not expose velocity through ``get_observation``).
+            ``gripper``   : float — gripper position (== ``joint_pos[-1]``),
+                kept for back-compat with downstream code.
+            ``timestamp`` : float — monotonic clock in seconds.
         """
         if not self._started:
             raise RuntimeError("Call start() before read_state()")
 
         obs = self._robot.get_observation()
-        joint_pos = np.asarray(obs["joint_pos"], dtype=np.float32)
-        joint_vel = np.asarray(obs.get("joint_vel", np.zeros(_SO101_DOF)), dtype=np.float32)
-        gripper = float(obs.get("gripper", 0.0))
+        joint_pos = np.array(
+            [float(obs[k]) for k in _SO101_KEYS], dtype=np.float32
+        )
 
         return {
             "joint_pos": joint_pos,
-            "joint_vel": joint_vel,
-            "gripper": gripper,
+            "joint_vel": np.zeros(_SO101_DOF, dtype=np.float32),
+            "gripper": float(joint_pos[-1]),
             "timestamp": time.monotonic(),
         }
 
     def read_action(self) -> np.ndarray:
-        """Read the current commanded action from the leader arm.
+        """Read the current commanded action.
+
+        With a leader connected the action is the leader's current joint
+        positions. Without a leader, the follower's own current state is
+        returned as a no-op action so downstream buffers stay aligned.
 
         Returns
         -------
-        np.ndarray float32 (7,) — [joint_0 .. joint_5, gripper]
+        np.ndarray float32 (6,) — [shoulder_pan, shoulder_lift, elbow_flex,
+            wrist_flex, wrist_roll, gripper]
         """
         if not self._started:
             raise RuntimeError("Call start() before read_action()")
 
-        action = self._robot.get_action()
-        return np.asarray(action, dtype=np.float32).reshape(_SO101_ACTION_DIM)
+        if self._leader is not None:
+            raw = self._leader.get_action()
+        else:
+            raw = self._robot.get_observation()
+
+        return np.array(
+            [float(raw[k]) for k in _SO101_KEYS], dtype=np.float32
+        )
 
     def stop(self) -> None:
-        """Disconnect from the arm hardware."""
-        if self._started and self._robot is not None:
-            self._robot.disconnect()
-            self._started = False
+        """Disconnect from the arm hardware (leader + follower)."""
+        if not self._started:
+            return
+        if self._leader is not None:
+            try:
+                self._leader.disconnect()
+            except Exception:
+                pass
+        if self._robot is not None:
+            try:
+                self._robot.disconnect()
+            except Exception:
+                pass
+        self._started = False
 
 
 class MockSO101Teleop:
@@ -180,10 +235,11 @@ class MockSO101Teleop:
     def read_state(self) -> dict:
         rng = np.random.default_rng(self._step)
         self._step += 1
+        joint_pos = rng.standard_normal(_SO101_DOF).astype(np.float32)
         return {
-            "joint_pos": rng.standard_normal(_SO101_DOF).astype(np.float32),
-            "joint_vel": rng.standard_normal(_SO101_DOF).astype(np.float32),
-            "gripper": float(rng.uniform(0.0, 1.0)),
+            "joint_pos": joint_pos,
+            "joint_vel": np.zeros(_SO101_DOF, dtype=np.float32),
+            "gripper": float(joint_pos[-1]),
             "timestamp": time.monotonic(),
         }
 
