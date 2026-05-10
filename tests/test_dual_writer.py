@@ -231,29 +231,26 @@ def test_write_lerobot_raises_importerror_when_lerobot_missing(tmp_path: Path) -
 
 
 # ------------------------------------------------------------------ #
-# ImportError for stable_worldmodel missing in hdf5/dual mode
+# HDF5 writer is now local — does NOT require stable_worldmodel
 # ------------------------------------------------------------------ #
 
-def test_write_hdf5_raises_importerror_when_swm_missing(tmp_path: Path) -> None:
+def test_hdf5_writer_works_without_stable_worldmodel(tmp_path: Path) -> None:
+    """The local _HDF5EpisodeWriter only needs h5py; stable_worldmodel is read-only."""
     import robot_data_recorder.dual_writer as dw_mod
 
+    cfg = RecordingConfig(
+        repo_id="test/swm-missing",
+        format="hdf5",
+        output_dir=str(tmp_path),
+    )
     with patch.object(dw_mod, "_HAS_STABLE_WORLDMODEL", False):
-        from robot_data_recorder.dual_writer import DualWriter  # noqa: PLC0415
-
-        writer = DualWriter.__new__(DualWriter)
-        writer._config = RecordingConfig(
-            repo_id="test/swm-missing",
-            format="hdf5",
-            output_dir=str(tmp_path),
-        )
-        writer._lerobot_dataset = None
-        writer._hdf5_writer = None
-        writer._episode_count = 0
-        writer._output_paths = {}
-
+        writer = dw_mod.DualWriter(cfg)
         ep = _make_episode()
-        with pytest.raises(ImportError, match="stable_worldmodel is required"):
-            writer._write_hdf5(ep)
+        writer.write_episode(ep)
+        paths = writer.finalize()
+
+    assert "hdf5" in paths
+    assert paths["hdf5"].exists()
 
 
 # ------------------------------------------------------------------ #

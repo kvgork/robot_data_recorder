@@ -28,6 +28,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
+
 from robot_data_recorder.config import RecordingConfig
 from robot_data_recorder.schema import (
     SCHEMA,
@@ -103,7 +105,8 @@ class DualWriter:
             )
 
         try:
-            from lerobot.common.datasets.lerobot_dataset import LeRobotDataset  # noqa: PLC0415
+            # lerobot >=0.4.4 dropped the `lerobot.common.*` namespace
+            from lerobot.datasets.lerobot_dataset import LeRobotDataset  # noqa: PLC0415
 
             w, h = self._config.resolution
             features = lerobot_features_dict(
@@ -125,24 +128,12 @@ class DualWriter:
             ) from exc
 
     def _init_hdf5(self, out_dir: Path) -> None:
-        if not _HAS_STABLE_WORLDMODEL:
-            raise ImportError(
-                "stable_worldmodel is required for hdf5/dual format. "
-                "Install with: pip install stable-worldmodel"
-            )
-
-        try:
-            from stable_worldmodel.data import HDF5Writer  # type: ignore[import-untyped]  # noqa: PLC0415
-
-            safe_name = self._config.repo_id.replace("/", "__")
-            h5_path = out_dir / f"{safe_name}.h5"
-            self._hdf5_writer = HDF5Writer(str(h5_path))
-            self._output_paths["hdf5"] = h5_path
-        except ImportError as exc:
-            raise ImportError(
-                "stable_worldmodel.data.HDF5Writer not found. "
-                "Install with: pip install stable-worldmodel"
-            ) from exc
+        # stable_worldmodel ships HDF5Dataset (read-only). The recorder uses a
+        # local writer that produces files compatible with that loader.
+        safe_name = self._config.repo_id.replace("/", "__")
+        h5_path = out_dir / f"{safe_name}.h5"
+        self._hdf5_writer = _HDF5EpisodeWriter(h5_path)
+        self._output_paths["hdf5"] = h5_path
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -191,20 +182,15 @@ class DualWriter:
                 "observation.state": ep["state"][t],
                 "action": ep["action"][t],
                 "timestamp": float(ep["timestamp"][t]),
+                "task": self._config.task,
             }
             dataset.add_frame(frame)
 
-        dataset.save_episode(task=self._config.task)
+        # lerobot >=0.4 takes task per frame; save_episode no longer accepts it
+        dataset.save_episode()
 
     def _write_hdf5(self, ep: dict[str, Any]) -> None:
-        """Write one episode to the stable-worldmodel HDF5 file."""
-        if not _HAS_STABLE_WORLDMODEL:
-            raise ImportError(
-                "stable_worldmodel is required for hdf5/dual format. "
-                "Install with: pip install stable-worldmodel"
-            )
-
-        # HDF5Writer expects ep as {col: list_of_step_arrays} or a contiguous dict
+        """Write one episode to the LeWM-compatible HDF5 file."""
         self._hdf5_writer.write_episode(ep)
 
     def finalize(self) -> dict[str, Path]:
@@ -226,11 +212,100 @@ class DualWriter:
 
         if fmt in ("hdf5", "dual") and self._hdf5_writer is not None:
             try:
-                self._hdf5_writer.__exit__(None, None, None)
+                self._hdf5_writer.close()
             except Exception:
-                try:
-                    self._hdf5_writer.close()
-                except Exception:
-                    pass
+                pass
 
         return {k: v for k, v in self._output_paths.items() if v is not None}
+
+
+# --------------------------------------------------------------------------- #
+# Local HDF5 writer (LeWM-compatible)
+# --------------------------------------------------------------------------- #
+
+
+class _HDF5EpisodeWriter:
+    """Append-mode HDF5 writer producing files readable by ``stable_worldmodel.data.HDF5Dataset``.
+
+    File layout (matches the ``SyncWorld.record_dataset`` schema):
+    - One resizable dataset per per-step field in :data:`SCHEMA.STEP_FIELDS`.
+    - ``ep_offset`` (int64) and ``ep_len`` (int32) index arrays.
+    - Datasets are created lazily on the first :meth:`write_episode` call so
+      shapes can be derived from real data.
+    """
+
+    def __init__(self, h5_path: Path) -> None:
+        import h5py  # noqa: PLC0415
+
+        self._h5py = h5py
+        self._path = Path(h5_path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = h5py.File(
+            self._path,
+            mode="w",
+            libver="latest",
+            fs_strategy="page",
+            fs_page_size=4 * 1024 * 1024,
+        )
+        self._file.swmr_mode = True
+        self._initialised = False
+        self._global_ptr = 0
+
+    def write_episode(self, ep: dict[str, Any]) -> None:
+        n_steps = int(ep["pixels"].shape[0])
+        if n_steps == 0:
+            return
+
+        if not self._initialised:
+            self._init_datasets(ep)
+            self._initialised = True
+
+        for key in SCHEMA.STEP_FIELDS:
+            ds = self._file[key]
+            curr = ds.shape[0]
+            ds.resize(curr + n_steps, axis=0)
+            ds[curr:] = np.asarray(ep[key])
+
+        ep_offset = self._file["ep_offset"]
+        ep_len = self._file["ep_len"]
+        idx = ep_offset.shape[0]
+        ep_offset.resize(idx + 1, axis=0)
+        ep_len.resize(idx + 1, axis=0)
+        ep_offset[idx] = self._global_ptr
+        ep_len[idx] = n_steps
+
+        self._global_ptr += n_steps
+        self._file.flush()
+
+    def close(self) -> None:
+        if self._file is not None:
+            try:
+                self._file.close()
+            finally:
+                self._file = None  # type: ignore[assignment]
+
+    def _init_datasets(self, ep: dict[str, Any]) -> None:
+        h5py = self._h5py
+        for key, (dtype_str, _) in SCHEMA.STEP_FIELDS.items():
+            sample = np.asarray(ep[key][0])
+            shape = (0,) + sample.shape
+            maxshape = (None,) + sample.shape
+            chunks: tuple[int, ...]
+            if sample.ndim >= 2:
+                chunks = (32,) + sample.shape
+            else:
+                chunks = (1024,) + sample.shape
+            self._file.create_dataset(
+                key,
+                shape=shape,
+                maxshape=maxshape,
+                dtype=np.dtype(dtype_str),
+                chunks=chunks,
+            )
+
+        self._file.create_dataset(
+            "ep_offset", shape=(0,), maxshape=(None,), dtype=np.int64
+        )
+        self._file.create_dataset(
+            "ep_len", shape=(0,), maxshape=(None,), dtype=np.int32
+        )
