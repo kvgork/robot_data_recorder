@@ -83,3 +83,55 @@ def test_no_key_press_runs_to_max_steps() -> None:
     assert len(buf.pixels) == 4
     assert buf.done[-1] is True
     assert session.abort_requested is False
+
+
+# ------------------------------------------------------------------ #
+# Inter-episode start gate
+# ------------------------------------------------------------------ #
+
+
+def test_wait_for_start_returns_true_on_space() -> None:
+    cfg = RecordingConfig(repo_id="t/start", format="hdf5", max_steps=4, fps=30)
+    listener = _FakeKeyListener(after=2, key=" ")
+    with _make_session(cfg, listener) as session:
+        assert session.wait_for_start(0, 5) is True
+        assert session.abort_requested is False
+
+
+def test_wait_for_start_returns_false_on_q() -> None:
+    cfg = RecordingConfig(repo_id="t/abort", format="hdf5", max_steps=4, fps=30)
+    listener = _FakeKeyListener(after=1, key="q")
+    with _make_session(cfg, listener) as session:
+        assert session.wait_for_start(0, 5) is False
+        assert session.abort_requested is True
+
+
+def test_wait_for_start_skips_in_dry_run() -> None:
+    cfg = RecordingConfig(
+        repo_id="t/dry", format="hdf5", max_steps=4, fps=30, dry_run=True
+    )
+    listener = _FakeKeyListener(after=999, key=None)
+    with _make_session(cfg, listener) as session:
+        # Should return immediately even though no key will ever come
+        assert session.wait_for_start(0, 5) is True
+
+
+def test_wait_for_start_skips_when_listener_not_tty() -> None:
+    """Non-tty listeners must fall through so scripted runs are unchanged."""
+    cfg = RecordingConfig(repo_id="t/nontty", format="hdf5", max_steps=4, fps=30)
+
+    class _NonTty:
+        is_tty = False
+
+        def __enter__(self) -> "_NonTty":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def poll(self, timeout: float = 0.0):
+            return None
+
+    with _make_session(cfg, _NonTty()) as session:
+        assert session.wait_for_start(0, 5) is True
+        assert session.abort_requested is False

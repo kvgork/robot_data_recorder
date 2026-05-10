@@ -146,17 +146,19 @@ Exits 0 when everything required is reachable, 1 when a blocker is found.
 
 ### Episode control keys
 
-While recording, press a single key in the launching terminal:
+The session is gated on operator key presses in the launching terminal:
 
-| Key            | Effect                                                           |
-|----------------|------------------------------------------------------------------|
-| `SPACE` / `ENTER` / `s` | End current episode and save it. Move to next episode.   |
-| `q`            | End current episode, save it, then abort the rest of the session. |
+| Phase                | Key                  | Effect                                              |
+|----------------------|----------------------|-----------------------------------------------------|
+| Before each episode  | `SPACE` / `ENTER` / `s` | Reset stage, then press to begin recording.       |
+| Before each episode  | `q`                   | Abort the session before recording starts.         |
+| During recording     | `SPACE` / `ENTER` / `s` | End current episode and save it. Wait for next.  |
+| During recording     | `q`                   | End current episode, save it, then abort session.  |
 
 `max_steps` (default `18000` ≈ 10 min @ 30 Hz) is still honoured as a hard
 safety ceiling; it only fires when no key is pressed. When stdin is not a
-tty (e.g. wrapped by a launcher), the listener is disabled and `max_steps`
-behaves like the old fixed-length cutoff.
+tty (e.g. wrapped by a launcher) the listener is disabled — start-gates fall
+through immediately and `max_steps` behaves like the old fixed-length cutoff.
 
 ### Real hardware (D435 + SO-101)
 
