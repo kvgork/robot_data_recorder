@@ -22,6 +22,7 @@ monorepo = ["lerobot-isaac-configs"]
 
 [project.scripts]
 robot-data-record = "robot_data_recorder.cli:main"
+robot-data-check = "robot_data_recorder.check_hardware:main"
 
 [build-system]
 requires = ["hatchling"]
