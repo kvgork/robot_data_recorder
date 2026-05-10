@@ -144,6 +144,20 @@ pixi run robot-data-check --json       # machine-readable output
 
 Exits 0 when everything required is reachable, 1 when a blocker is found.
 
+### Episode control keys
+
+While recording, press a single key in the launching terminal:
+
+| Key            | Effect                                                           |
+|----------------|------------------------------------------------------------------|
+| `SPACE` / `ENTER` / `s` | End current episode and save it. Move to next episode.   |
+| `q`            | End current episode, save it, then abort the rest of the session. |
+
+`max_steps` (default `18000` ≈ 10 min @ 30 Hz) is still honoured as a hard
+safety ceiling; it only fires when no key is pressed. When stdin is not a
+tty (e.g. wrapped by a launcher), the listener is disabled and `max_steps`
+behaves like the old fixed-length cutoff.
+
 ### Real hardware (D435 + SO-101)
 
 Hardware ports/serial pulled from env vars (set via `pixi run setup-env` or
