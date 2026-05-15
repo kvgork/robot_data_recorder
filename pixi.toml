@@ -37,6 +37,14 @@ robot-data-recorder = { path = ".", editable = true }
 lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
 # LeWM HDF5 writer (hdf5 / dual format)
 stable-worldmodel = "*"
+# Live camera viewer (tkinter + Pillow)
+pillow = "*"
+
+[tasks]
+record = "robot-data-record"
+check = "robot-data-check"
+view-cam = "robot-data-view"
+test = "python -m pytest tests/ -q"
 
 [feature.dev.dependencies]
 pytest = "*"
