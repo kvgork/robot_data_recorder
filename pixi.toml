@@ -9,14 +9,14 @@
 
 [workspace]
 name = "robot-data-recorder"
-channels = ["conda-forge"]
+channels = ["conda-forge", "nvidia"]
 platforms = ["linux-64"]
 
 [system-requirements]
 cuda = "12"
 
 [dependencies]
-python = "3.12.*"
+python = ">=3.10,<3.13"
 pip = "*"
 numpy = "*"
 h5py = "*"
@@ -33,8 +33,10 @@ fsspec = "<=2025.9.0"
 
 [pypi-dependencies]
 robot-data-recorder = { path = ".", editable = true }
-# LeRobot Parquet writer (parquet / dual format)
-lerobot = { path = "../../../lerobot/src/lerobot", editable = true, extras = ["feetech", "intelrealsense"] }
+# lerobot intentionally NOT listed here. Recorder now lives inside the
+# lerobot-isaac-training workspace as an editable sibling — install lerobot
+# via the workspace's helper (extras: feetech, intelrealsense):
+#   pixi run install-train-deps --policy
 # LeWM HDF5 writer (hdf5 / dual format)
 stable-worldmodel = "*"
 # Live camera viewer (tkinter + Pillow)
