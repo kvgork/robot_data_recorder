@@ -100,7 +100,7 @@ class SO101Teleop:
         if not _HAS_LEROBOT:
             raise ImportError(
                 "lerobot is required to use SO101Teleop. "
-                "Install with: bash scripts/install_lerobot.sh"
+                "Install with: pip install lerobot"
             )
 
         # lerobot >=0.4.4 dropped the legacy `make_robot` factory.

@@ -42,11 +42,20 @@ stable-worldmodel = "*"
 # Live camera viewer (tkinter + Pillow)
 pillow = "*"
 
+[activation]
+# Auto-load .env (LERO_FOLLOWER_PORT, LERO_LEADER_PORT, LERO_CAM_SERIAL)
+# whenever a pixi shell / task is started in this repo.
+scripts = ["scripts/setup_env.sh"]
+
 [tasks]
 record = "robot-data-record"
 check = "robot-data-check"
 view-cam = "robot-data-view"
 test = "python -m pytest tests/ -q"
+# Autodetect tty + camera, write .env. Run once after plugging hardware.
+setup-env = "bash scripts/setup_env.sh --detect"
+# Print resolved env-var values without writing.
+setup-env-check = "bash scripts/setup_env.sh --check"
 
 [feature.dev.dependencies]
 pytest = "*"

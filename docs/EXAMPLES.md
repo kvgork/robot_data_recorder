@@ -52,7 +52,7 @@ Full hardware recording session writing both LeRobot Parquet and LeWM HDF5.
 **Prerequisites:**
 ```bash
 pip install pyrealsense2
-bash scripts/install_lerobot.sh
+pip install lerobot
 pip install stable-worldmodel
 ```
 

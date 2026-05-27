@@ -9,3 +9,6 @@ dist/
 pixi.lock
 datasets/
 outputs/
+.env
+# Local Claude Code orientation file — not published
+CLAUDE.md

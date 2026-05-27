@@ -101,7 +101,7 @@ class DualWriter:
         if not _HAS_LEROBOT:
             raise ImportError(
                 "lerobot is required for parquet/dual format. "
-                "Install with: bash scripts/install_lerobot.sh"
+                "Install with: pip install lerobot"
             )
 
         try:
@@ -124,7 +124,7 @@ class DualWriter:
         except ImportError as exc:
             raise ImportError(
                 "lerobot LeRobotDataset not found. "
-                "Install with: bash scripts/install_lerobot.sh"
+                "Install with: pip install lerobot"
             ) from exc
 
     def _init_hdf5(self, out_dir: Path) -> None:
@@ -170,7 +170,7 @@ class DualWriter:
         if not _HAS_LEROBOT:
             raise ImportError(
                 "lerobot is required for parquet/dual format. "
-                "Install with: bash scripts/install_lerobot.sh"
+                "Install with: pip install lerobot"
             )
 
         dataset = self._lerobot_dataset

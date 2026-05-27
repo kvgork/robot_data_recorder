@@ -1,7 +1,7 @@
 # robot-data-recorder
 
-D435 camera + SO-101 teleoperation **dual-write recorder** for the
-`lerobot-isaac-training` workspace.
+D435 camera + SO-101 teleoperation **dual-write recorder**. Built for the
+`lerobot-isaac-training` workspace, but runs standalone.
 
 Records demonstration episodes simultaneously to:
 - **LeRobot v3 Parquet** — for policy training with ACT / SmolVLA / DiffPolicy
@@ -36,38 +36,36 @@ Real hardware loop (D435 + SO-101) requires `pyrealsense2` + `lerobot` at runtim
 
 ## Installation
 
-### Monorepo mode (pixi)
-
 ```bash
-cd ~/workspaces/lerobot-isaac-training
-pixi install         # installs all workspace packages
-```
-
-### Standalone mode
-
-```bash
-cd packages/robot-data-recorder
-pixi install         # standalone pixi environment (dormant in monorepo mode)
-```
-
-### Direct pip install
-
-```bash
-pip install -e packages/robot-data-recorder/
+git clone <this-repo-url>
+cd robot-data-recorder
+pixi install            # pinned environment (recommended)
+# or, plain pip:
+pip install -e .
 ```
 
 ### Optional heavy deps
 
+The camera / teleop / output backends are soft-imported — install only what you
+need:
+
 ```bash
-# For real D435 camera recording:
+# Real D435 camera recording:
 pip install pyrealsense2
 
-# For LeRobot Parquet output (parquet / dual format):
-bash scripts/install_lerobot.sh    # or: pip install lerobot
+# LeRobot Parquet output (parquet / dual format):
+pip install lerobot
 
-# For LeWM HDF5 output (hdf5 / dual format):
+# LeWM HDF5 output (hdf5 / dual format):
 pip install stable-worldmodel
 ```
+
+> **Workspace mode (optional):** this package originated inside the
+> `lerobot-isaac-training` pixi workspace. Named-config loading
+> (`--config=<name>`) delegates to the `lerobot-isaac-configs` sibling, which is
+> not published on PyPI. Standalone users pass a YAML **file path** instead
+> (`--config=path/to/recording.yaml`) — everything else works without the
+> workspace.
 
 ---
 
@@ -148,12 +146,18 @@ Exits 0 when everything required is reachable, 1 when a blocker is found.
 
 The session is gated on operator key presses in the launching terminal:
 
-| Phase                | Key                  | Effect                                              |
-|----------------------|----------------------|-----------------------------------------------------|
-| Before each episode  | `SPACE` / `ENTER` / `s` | Reset stage, then press to begin recording.       |
-| Before each episode  | `q`                   | Abort the session before recording starts.         |
-| During recording     | `SPACE` / `ENTER` / `s` | End current episode and save it. Wait for next.  |
-| During recording     | `q`                   | End current episode, save it, then abort session.  |
+| Phase                | Key                     | Effect                                                       |
+|----------------------|-------------------------|--------------------------------------------------------------|
+| Before each episode  | `SPACE` / `ENTER` / `s` | Reset stage, then press to begin recording.                  |
+| Before each episode  | `q`                     | Abort the session before recording starts.                   |
+| During recording     | `SPACE` / `ENTER` / `s` | End episode, save, mark **SUCCESS** (terminal reward = 1.0). |
+| During recording     | `f`                     | End episode, save, mark **FAILURE** (reward stays 0.0).      |
+| During recording     | `q`                     | End episode, save (as failure), then abort session.          |
+
+Success / failure is written to the `reward` channel as a sparse terminal
+reward — `+1.0` on the last frame of a successful episode, `0.0` otherwise. The
+world-model HDF5 output consumes this; the LeRobot Parquet output currently
+omits the reward channel.
 
 `max_steps` (default `18000` ≈ 10 min @ 30 Hz) is still honoured as a hard
 safety ceiling; it only fires when no key is pressed. When stdin is not a
@@ -213,7 +217,7 @@ class RecordingConfig:
     camera_serial: str | None = field(default_factory=_env_camera_serial)  # $LERO_CAM_SERIAL
     resolution: tuple[int, int] = (640, 480)
     enable_depth: bool = False
-    max_steps: int = 200
+    max_steps: int = 18000
     dry_run: bool = False
 
     @classmethod
@@ -279,7 +283,7 @@ The canonical superset schema (from `schema.EpisodeSchema`):
 | `timestamp` | float32 | (T,) | Hardware timestamp (seconds) |
 | `episode_idx` | int64 | (T,) | Global episode index |
 | `step_idx` | int64 | (T,) | Within-episode step index |
-| `reward` | float32 | (T,) | Reward (0.0 for teleop) |
+| `reward` | float32 | (T,) | Sparse terminal reward: 1.0 on success frame, else 0.0 |
 | `ep_len` | int64 | (N_ep,) | Length of each episode |
 | `ep_offset` | int64 | (N_ep,) | Cumulative start offset |
 
@@ -296,15 +300,15 @@ Episode i occupies rows `[ep_offset[i], ep_offset[i] + ep_len[i])`.
 | `h5py` | HDF5 read/write |
 | `numpy` | Array operations |
 | `pyyaml` | YAML config loading |
-| `lerobot-isaac-configs` | Workspace config loader |
 
 ### Soft (required only for specific features)
 
 | Package | Required for | Install |
 |---------|-------------|---------|
 | `pyrealsense2` | Real D435 camera | `pip install pyrealsense2` |
-| `lerobot` | Parquet output | `bash scripts/install_lerobot.sh` |
+| `lerobot` | Parquet output | `pip install lerobot` |
 | `stable-worldmodel` | HDF5 output | `pip install stable-worldmodel` |
+| `lerobot-isaac-configs` | Named-config loading (workspace-only, optional) | n/a — pass a YAML file path instead |
 
 ---
 
@@ -342,7 +346,7 @@ cfg = RecordingConfig.from_yaml("configs/recording_default.yaml")
 ## Running Tests
 
 ```bash
-cd packages/robot-data-recorder
+cd robot-data-recorder
 python3 -m pytest tests/ -v
 ```
 
@@ -356,20 +360,12 @@ pytest tests/ -m 'not requires_realsense and not requires_lerobot'
 
 ---
 
-## Spinout
+## Documentation
 
-This package can be extracted as a standalone PyPI package:
+- [`docs/API.md`](docs/API.md) — public API reference
+- [`docs/INTERNALS.md`](docs/INTERNALS.md) — internal design + soft-import discipline
+- [`docs/EXAMPLES.md`](docs/EXAMPLES.md) — worked examples
 
-```bash
-git subtree split -P packages/robot-data-recorder -b spinout-recorder
-```
+## License
 
-After spinout, update sibling `pyproject.toml` files to reference the PyPI version.
-See `../../docs/ARCHITECTURE.md` (spinout section).
-
----
-
-## Source-of-Truth Pointers
-
-- ADR-0003 (soft-import discipline): `../../docs/adr/0003-soft-import-discipline.md`
-- Workspace architecture: `../../docs/ARCHITECTURE.md`
+MIT — see [`LICENSE`](LICENSE).
