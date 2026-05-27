@@ -231,6 +231,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     teleop = SO101Teleop(arm_port=cfg.arm_port, leader_port=cfg.leader_port)
     writer = DualWriter(cfg)
 
+    n_recorded = 0
+    n_success = 0
     with RecordingSession(cfg, camera=camera, teleop=teleop, writer=writer) as session:
         for ep_idx in range(cfg.num_episodes):
             if not session.wait_for_start(ep_idx, cfg.num_episodes):
@@ -245,15 +247,23 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print("[robot-data-record] Aborted before any frames recorded.")
                 break
             session.save_episode(buf)
+            n_recorded += 1
+            if buf.success:
+                n_success += 1
+            label = "SUCCESS" if buf.success else "FAILURE"
             print(
-                f"[robot-data-record] Episode {ep_idx + 1} saved ({len(buf.pixels)} steps)"
+                f"[robot-data-record] Episode {ep_idx + 1} saved "
+                f"({len(buf.pixels)} steps, {label})"
             )
             if session.abort_requested:
                 print("[robot-data-record] Abort requested; stopping session.")
                 break
 
     paths = writer.finalize()
-    print("[robot-data-record] Done. Output paths:")
+    print(
+        f"[robot-data-record] Done. {n_success}/{n_recorded} episodes "
+        f"marked SUCCESS. Output paths:"
+    )
     for fmt, p in paths.items():
         print(f"  {fmt}: {p}")
 

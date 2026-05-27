@@ -49,12 +49,22 @@ if TYPE_CHECKING:
     from robot_data_recorder.so101_teleop import MockSO101Teleop, SO101Teleop
 
 
-# Keys that mark "this episode is done"
-_END_EPISODE_KEYS = frozenset({" ", "\n", "\r", "s", "S"})
-# Keys that mark "start the next episode"
-_START_EPISODE_KEYS = _END_EPISODE_KEYS
+# Keys that end the episode and mark it a SUCCESS (goal reached).
+_SUCCESS_KEYS = frozenset({" ", "\n", "\r", "s", "S"})
+# Keys that end the episode and mark it a FAILURE (goal not reached).
+_FAILURE_KEYS = frozenset({"f", "F"})
+# Any key that ends the current episode.
+_END_EPISODE_KEYS = _SUCCESS_KEYS | _FAILURE_KEYS
+# Keys that start the next episode at the inter-episode gate.
+_START_EPISODE_KEYS = _SUCCESS_KEYS
 # Keys that mark "abort the whole session"
 _ABORT_KEYS = frozenset({"q", "Q", "\x03"})  # Ctrl-C as a printable byte
+
+# Terminal reward written on the final step of a successful episode. Teleop
+# demos carry no dense reward, so success is encoded as a sparse +1 on the last
+# frame — the convention stable-worldmodel / RL consumers expect from the
+# `reward` channel.
+_SUCCESS_REWARD = 1.0
 
 
 @dataclass
@@ -81,7 +91,13 @@ class EpisodeBuffer:
     timestamp:
         List of hardware timestamps (float, seconds).
     reward:
-        List of reward scalars (0.0 for teleop).
+        List of reward scalars. 0.0 on every step except the final step of a
+        successful episode, which is set to ``_SUCCESS_REWARD`` (sparse
+        terminal reward). This is the channel the world-model HDF5 consumer
+        reads to learn success.
+    success:
+        Whether the operator marked this episode a success. Drives the
+        terminal reward; in-memory only — not written to disk as its own field.
     """
 
     episode_idx: int = 0
@@ -92,6 +108,7 @@ class EpisodeBuffer:
     done: list = field(default_factory=list)
     timestamp: list = field(default_factory=list)
     reward: list = field(default_factory=list)
+    success: bool = False
 
     def to_dict(self) -> dict[str, np.ndarray]:
         """Convert lists to numpy arrays in the canonical schema format."""
@@ -264,11 +281,13 @@ class RecordingSession:
         if getattr(self._key_listener, "is_tty", False):
             print(
                 f"[robot-data-record] Episode {episode_idx + 1}: "
-                "press SPACE/ENTER to save, 'q' to abort session "
+                "press SPACE/ENTER/'s' to save as SUCCESS, 'f' to save as "
+                "FAILURE, 'q' to abort session "
                 f"(safety cap: {max_steps} steps)."
             )
 
         ended_by_key = False
+        success = False
         last_step = 0
         for step in range(max_steps):
             last_step = step
@@ -293,12 +312,13 @@ class RecordingSession:
             buf.reward.append(0.0)
 
             key = self._key_listener.poll()
-            if key in _END_EPISODE_KEYS:
-                ended_by_key = True
-                break
             if key in _ABORT_KEYS:
                 self._abort_requested = True
                 ended_by_key = True
+                break
+            if key in _END_EPISODE_KEYS:
+                ended_by_key = True
+                success = key in _SUCCESS_KEYS
                 break
 
             elapsed = time.monotonic() - t0
@@ -308,10 +328,14 @@ class RecordingSession:
 
         if buf.done:
             buf.done[-1] = True
+        if success and buf.reward:
+            buf.reward[-1] = _SUCCESS_REWARD
+        buf.success = success
         if not ended_by_key and last_step == max_steps - 1:
             print(
                 f"[robot-data-record] Episode {episode_idx + 1}: hit max_steps "
-                f"({max_steps}); auto-saving. Increase --max-steps for longer episodes."
+                f"({max_steps}); auto-saving as FAILURE (no success key pressed). "
+                f"Increase --max-steps for longer episodes."
             )
         return buf
 

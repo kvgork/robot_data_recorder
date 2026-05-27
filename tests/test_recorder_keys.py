@@ -86,6 +86,62 @@ def test_no_key_press_runs_to_max_steps() -> None:
 
 
 # ------------------------------------------------------------------ #
+# Success / failure labelling -> terminal reward
+# ------------------------------------------------------------------ #
+
+
+def test_space_marks_success_with_terminal_reward() -> None:
+    cfg = RecordingConfig(repo_id="t/succ", format="hdf5", max_steps=100, fps=30)
+    listener = _FakeKeyListener(after=4, key=" ")
+    with _make_session(cfg, listener) as session:
+        buf = session.record_episode(0)
+    assert buf.success is True
+    assert buf.reward[-1] == 1.0
+    assert all(r == 0.0 for r in buf.reward[:-1])
+    assert buf.done[-1] is True
+
+
+def test_s_key_marks_success() -> None:
+    cfg = RecordingConfig(repo_id="t/succ-s", format="hdf5", max_steps=100, fps=30)
+    listener = _FakeKeyListener(after=2, key="s")
+    with _make_session(cfg, listener) as session:
+        buf = session.record_episode(0)
+    assert buf.success is True
+    assert buf.reward[-1] == 1.0
+
+
+def test_f_marks_failure_zero_reward() -> None:
+    cfg = RecordingConfig(repo_id="t/fail", format="hdf5", max_steps=100, fps=30)
+    listener = _FakeKeyListener(after=3, key="f")
+    with _make_session(cfg, listener) as session:
+        buf = session.record_episode(0)
+    assert len(buf.pixels) == 3
+    assert buf.success is False
+    assert buf.done[-1] is True
+    assert all(r == 0.0 for r in buf.reward)
+    assert session.abort_requested is False
+
+
+def test_max_steps_defaults_to_failure() -> None:
+    cfg = RecordingConfig(repo_id="t/capfail", format="hdf5", max_steps=4, fps=120)
+    listener = _FakeKeyListener(after=999, key=None)
+    with _make_session(cfg, listener) as session:
+        buf = session.record_episode(0)
+    assert buf.success is False
+    assert all(r == 0.0 for r in buf.reward)
+
+
+def test_q_abort_marks_failure() -> None:
+    cfg = RecordingConfig(repo_id="t/qfail", format="hdf5", max_steps=100, fps=30)
+    listener = _FakeKeyListener(after=2, key="q")
+    with _make_session(cfg, listener) as session:
+        buf = session.record_episode(0)
+    assert session.abort_requested is True
+    assert buf.success is False
+    assert all(r == 0.0 for r in buf.reward)
+
+
+# ------------------------------------------------------------------ #
 # Inter-episode start gate
 # ------------------------------------------------------------------ #
 
