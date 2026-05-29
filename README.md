@@ -211,6 +211,7 @@ class RecordingConfig:
     format: str = "dual"           # parquet | hdf5 | dual
     output_dir: str = "./datasets"
     task: str = "unspecified"
+    camera_name: str = "overhead"  # -> observation.images.<camera_name>
     fps: int = 30
     arm_port: str = field(default_factory=_env_follower_port)   # $LERO_FOLLOWER_PORT
     leader_port: str | None = field(default_factory=_env_leader_port)  # $LERO_LEADER_PORT
@@ -276,18 +277,33 @@ The canonical superset schema (from `schema.EpisodeSchema`):
 | Field | Dtype | Shape | Description |
 |-------|-------|-------|-------------|
 | `pixels` | uint8 | (T, H, W, C) | RGB frames |
-| `action` | float32 | (T, A) | Commanded joint angles + gripper |
-| `state` | float32 | (T, S) | Observed joint positions + gripper |
-| `proprio` | float32 | (T, P) | Same as state for SO-101 |
+| `action` | float32 | (T, 6) | Commanded joint targets (5 joints + gripper) |
+| `state` | float32 | (T, 12) | `joint_pos[6]` + `joint_vel[6]` |
+| `proprio` | float32 | (T, 12) | Same as state for SO-101 |
 | `done` | bool | (T,) | Episode terminal flag |
-| `timestamp` | float32 | (T,) | Hardware timestamp (seconds) |
+| `timestamp` | float32 | (T,) | Seconds since episode start (rebased) |
 | `episode_idx` | int64 | (T,) | Global episode index |
 | `step_idx` | int64 | (T,) | Within-episode step index |
 | `reward` | float32 | (T,) | Sparse terminal reward: 1.0 on success frame, else 0.0 |
+| `depth` *(optional)* | uint16 | (T, H, W) | D435 depth, HDF5 only, when `--depth` set |
 | `ep_len` | int64 | (N_ep,) | Length of each episode |
 | `ep_offset` | int64 | (N_ep,) | Cumulative start offset |
 
 Episode i occupies rows `[ep_offset[i], ep_offset[i] + ep_len[i])`.
+
+### Training-readiness contract
+
+The output is aligned with the `lerobot-isaac-training` pipeline so recordings drop
+straight into policy / world-model training:
+
+- **LeRobot Parquet** carries `observation.images.<camera_name>` (default `overhead`,
+  HWC uint8), `observation.state` (12-dim), `action` (6-dim), plus **`next.reward`**
+  (sparse terminal success) and **`next.done`** (termination) — the exact columns the
+  world-model bridge reads to fill its `rewards` / `dones` arrays, and which let a
+  policy trainer filter successful demos.
+- **HDF5** stores all per-step fields plus optional `depth`, and records training
+  metadata (`fps`, `task`, `camera_name`, motor names, image layout, action/state dims)
+  in the file's root `attrs` so it is self-describing.
 
 ---
 

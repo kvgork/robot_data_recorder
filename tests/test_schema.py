@@ -163,23 +163,50 @@ def test_compute_ep_offset_dtype() -> None:
 # ------------------------------------------------------------------ #
 
 def test_lerobot_features_dict_keys() -> None:
-    feats = lerobot_features_dict(action_dim=7, state_dim=7, image_shape=(3, 480, 640))
-    assert "observation.images.d435_rgb" in feats
+    # Default camera_key is "overhead" (the D435 mount on this rig).
+    feats = lerobot_features_dict(action_dim=6, state_dim=12, image_shape=(480, 640, 3))
+    assert "observation.images.overhead" in feats
     assert "observation.state" in feats
     assert "action" in feats
+    # Reward + done must be present: the world-model bridge reads these exact
+    # columns to populate its rewards/dones arrays.
+    assert "next.reward" in feats
+    assert "next.done" in feats
 
 
-def test_lerobot_features_dict_image_shape() -> None:
-    feats = lerobot_features_dict(action_dim=7, state_dim=7, image_shape=(3, 480, 640))
-    assert feats["observation.images.d435_rgb"]["shape"] == (3, 480, 640)
+def test_lerobot_features_dict_camera_key() -> None:
+    feats = lerobot_features_dict(
+        action_dim=6, state_dim=12, image_shape=(480, 640, 3), camera_key="wrist"
+    )
+    assert "observation.images.wrist" in feats
+    assert "observation.images.overhead" not in feats
+
+
+def test_lerobot_features_dict_image_shape_is_hwc() -> None:
+    # Channels-last (HWC) so the declared shape matches the uint8 frames fed to
+    # add_frame.
+    feats = lerobot_features_dict(action_dim=6, state_dim=12, image_shape=(480, 640, 3))
+    img = feats["observation.images.overhead"]
+    assert img["shape"] == (480, 640, 3)
+    assert img["names"] == ["height", "width", "channels"]
 
 
 def test_lerobot_features_dict_action_dim() -> None:
-    feats = lerobot_features_dict(action_dim=7, state_dim=6, image_shape=(3, 480, 640))
-    assert feats["action"]["shape"] == (7,)
-    assert feats["observation.state"]["shape"] == (6,)
+    feats = lerobot_features_dict(action_dim=6, state_dim=12, image_shape=(480, 640, 3))
+    assert feats["action"]["shape"] == (6,)
+    assert feats["observation.state"]["shape"] == (12,)
+
+
+def test_lerobot_features_dict_state_names_so101() -> None:
+    # 12-dim state must carry joint_pos/joint_vel names matching the trainer's
+    # Isaac recorder so real and sim datasets share one feature schema.
+    feats = lerobot_features_dict(action_dim=6, state_dim=12, image_shape=(480, 640, 3))
+    names = feats["observation.state"]["names"]
+    assert names == [f"joint_pos_{i}" for i in range(6)] + [
+        f"joint_vel_{i}" for i in range(6)
+    ]
 
 
 def test_lerobot_features_dict_image_dtype() -> None:
-    feats = lerobot_features_dict(action_dim=7, state_dim=7, image_shape=(3, 480, 640))
-    assert feats["observation.images.d435_rgb"]["dtype"] == "image"
+    feats = lerobot_features_dict(action_dim=6, state_dim=12, image_shape=(480, 640, 3))
+    assert feats["observation.images.overhead"]["dtype"] == "image"

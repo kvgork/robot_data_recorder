@@ -55,6 +55,12 @@ class RecordingConfig:
         Base directory for output files. Default: ``./datasets``.
     task:
         Human-readable task description written into dataset metadata.
+    camera_name:
+        Short camera name. The LeRobot image feature is exposed as
+        ``observation.images.<camera_name>`` and the name is recorded in the
+        HDF5 metadata. Default: ``overhead`` (the D435 mount on this rig). Use
+        the name the downstream trainer/world-model bridge expects (``overhead``
+        or ``wrist``).
     fps:
         Recording frame rate (Hz). Default: 30.
     arm_port:
@@ -84,6 +90,7 @@ class RecordingConfig:
     format: str = "dual"
     output_dir: str = "./datasets"
     task: str = "unspecified"
+    camera_name: str = "overhead"
     fps: int = 30
     arm_port: str = field(default_factory=_env_follower_port)
     leader_port: str | None = field(default_factory=_env_leader_port)
