@@ -108,22 +108,36 @@ class EpisodeBuffer:
     done: list = field(default_factory=list)
     timestamp: list = field(default_factory=list)
     reward: list = field(default_factory=list)
+    depth: list = field(default_factory=list)
     success: bool = False
 
     def to_dict(self) -> dict[str, np.ndarray]:
-        """Convert lists to numpy arrays in the canonical schema format."""
+        """Convert lists to numpy arrays in the canonical schema format.
+
+        ``timestamp`` is rebased to seconds since the first frame of this
+        episode: the hardware clock is ``time.monotonic()`` whose absolute base
+        can be large enough that float32 loses sub-step resolution, and a
+        world-model only needs intra-episode dt. ``depth`` is included only when
+        captured (``--depth``) — it is an HDF5-only optional field.
+        """
         n = len(self.pixels)
-        return {
+        ts = np.array(self.timestamp, dtype=np.float64)
+        if ts.size:
+            ts = ts - ts[0]
+        out: dict[str, np.ndarray] = {
             "pixels": np.stack(self.pixels, axis=0).astype(np.uint8),
             "action": np.stack(self.action, axis=0).astype(np.float32),
             "state": np.stack(self.state, axis=0).astype(np.float32),
             "proprio": np.stack(self.proprio, axis=0).astype(np.float32),
             "done": np.array(self.done, dtype=bool),
-            "timestamp": np.array(self.timestamp, dtype=np.float32),
+            "timestamp": ts.astype(np.float32),
             "episode_idx": np.full(n, self.episode_idx, dtype=np.int64),
             "step_idx": np.arange(n, dtype=np.int64),
             "reward": np.array(self.reward, dtype=np.float32),
         }
+        if self.depth:
+            out["depth"] = np.stack(self.depth, axis=0).astype(np.uint16)
+        return out
 
 
 class RecordingSession:
@@ -297,15 +311,22 @@ class RecordingSession:
             arm_state = self._teleop.read_state()
             action = self._teleop.read_action()
 
-            # State vector = full motor positions (5 joints + gripper).
-            # lerobot 0.4.4 already includes the gripper in joint_pos, so
-            # we copy the array directly without an extra concat.
-            state_vec = np.asarray(arm_state["joint_pos"], dtype=np.float32)
+            # State vector = joint_pos[6] + joint_vel[6] = 12 dims, matching the
+            # canonical SO-101 observation.state the trainer / world-model
+            # bridge expect. The real follower does not expose velocity (returns
+            # zeros), but emitting the 12-dim layout keeps real recordings
+            # dimensionally compatible with Isaac/synthetic data so they share
+            # one feature schema and can be merged and trained together.
+            joint_pos = np.asarray(arm_state["joint_pos"], dtype=np.float32)
+            joint_vel = np.asarray(arm_state["joint_vel"], dtype=np.float32)
+            state_vec = np.concatenate([joint_pos, joint_vel]).astype(np.float32)
 
             buf.pixels.append(frame["rgb"])
             buf.action.append(action)
             buf.state.append(state_vec)
             buf.proprio.append(state_vec.copy())  # proprio = state for SO-101
+            if frame.get("depth") is not None:
+                buf.depth.append(frame["depth"])
             # Will fix the last entry to True after the loop.
             buf.done.append(False)
             buf.timestamp.append(float(arm_state["timestamp"]))
@@ -348,7 +369,8 @@ class RecordingSession:
         for t in range(n_steps):
             buf.pixels.append(rng.integers(0, 255, (480, 640, 3), dtype=np.uint8))
             buf.action.append(rng.standard_normal(6).astype(np.float32))
-            state = rng.standard_normal(6).astype(np.float32)
+            # 12-dim state = joint_pos[6] + joint_vel[6], matching real recordings.
+            state = rng.standard_normal(12).astype(np.float32)
             buf.state.append(state)
             buf.proprio.append(state.copy())
             buf.done.append(t == n_steps - 1)

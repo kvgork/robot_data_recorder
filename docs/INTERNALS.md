@@ -32,9 +32,14 @@ episode 1: rows [ep_offset[1], ep_offset[1]+ep_len[1])
 ```
 
 **`lerobot_features_dict`** generates the features dict passed to
-`LeRobotDataset.create()`. Camera key is always `observation.images.d435_rgb`.
-LeRobot expects channels-first `(C, H, W)` in features but channels-last `(H, W, C)`
-in actual frame data — this is handled in `DualWriter._write_lerobot()`.
+`LeRobotDataset.create()`. The camera key is `observation.images.<camera_key>`
+(default `overhead`). For `dtype="image"` the feature shape is declared
+channels-last `(H, W, C)` to match the uint8 frames `DualWriter._write_lerobot()`
+feeds to `add_frame` (declaring CHW would trip add_frame's shape check). The dict
+also includes `next.reward` and `next.done` so the operator's success label and
+episode termination survive into the Parquet dataset (the world-model bridge reads
+these columns), and `observation.state` is 12-dim with `joint_pos_*`/`joint_vel_*`
+names matching the trainer's Isaac recorder.
 
 ---
 
@@ -83,13 +88,16 @@ Wraps `lerobot.common.robot_devices.robots.factory.make_robot`. In Phase 0 this
 import is inside `start()` so the module loads cleanly without lerobot installed.
 
 **State format:** `read_state()` returns a dict with:
-- `joint_pos` (6,) — revolute joint angles in radians
-- `joint_vel` (6,) — joint angular velocities
-- `gripper` float — normalized 0.0 (closed) to 1.0 (open)
+- `joint_pos` (6,) — 5 revolute joints + gripper (lerobot includes the gripper)
+- `joint_vel` (6,) — joint angular velocities (zeros on the real follower)
+- `gripper` float — `joint_pos[-1]`, kept for back-compat
 - `timestamp` float — `time.monotonic()` in seconds
 
-**Action format:** `read_action()` returns a `(7,)` float32 array:
-`[joint_0, joint_1, joint_2, joint_3, joint_4, joint_5, gripper]`
+The recorder concatenates `joint_pos` + `joint_vel` into the 12-dim
+`observation.state`.
+
+**Action format:** `read_action()` returns a `(6,)` float32 array:
+`[shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]`
 
 This matches the SO-101 convention used in LeRobot teleoperation scripts.
 
@@ -139,10 +147,24 @@ accuracy, a hardware trigger would be needed (future work).
 using `np.random.default_rng(episode_idx)`. This ensures reproducible test data and
 allows `--dry-run` to exercise the full buffer-to-dict path without hardware.
 
-**State vector:** For SO-101, both `state` and `proprio` are `[joint_pos(6), gripper(1)]`
-— a 7-element float32 vector. The distinction between state and proprio is inherited
-from the LeWM schema where tasks may have different state (global) and proprio (local)
-observations. For SO-101 they are identical.
+**State vector:** For SO-101, both `state` and `proprio` are
+`[joint_pos(6), joint_vel(6)]` — a 12-element float32 vector matching the canonical
+`observation.state` the `lerobot-isaac-training` pipeline (Isaac recorder, world-model
+bridge, policy/WM trainers) expects, so real recordings share one feature schema with
+Isaac/synthetic data and can be merged and trained together. The real follower does
+not expose velocity (`joint_vel` is zeros), but the 12-dim layout keeps the data
+dimensionally compatible. The distinction between state and proprio is inherited from
+the LeWM schema; for SO-101 they are identical.
+
+**Training-readiness contract:** the LeRobot Parquet output carries
+`next.reward` (sparse terminal success) and `next.done` (episode termination) — the
+exact columns the world-model bridge reads to fill its `rewards`/`dones` arrays, and
+which let a policy trainer filter successful demos. The image feature key is
+`observation.images.<camera_name>` (default `overhead`, set via `--camera-name`).
+Depth, when captured (`--depth`), is written to the HDF5 `depth` dataset (uint16,
+T×H×W); it is HDF5-only (no LeRobot depth feature). The HDF5 file records training
+metadata (fps, task, camera_name, motor names, image layout, action/state dims) in its
+root `attrs` so it is self-describing.
 
 ---
 
@@ -173,10 +195,11 @@ The superset schema was chosen to maximize compatibility with both consumers:
 |-------|------------------------|---------------|--------|
 | `pixels` | Yes | Yes (as image) | Both |
 | `action` | Yes | Yes | Both |
-| `state` | Optional | Yes (`observation.state`) | Both |
+| `state` | Optional | Yes (`observation.state`, 12-dim) | Both |
 | `proprio` | Optional | No (embedded in state) | LeWM only |
-| `reward` | Yes (zeros for teleop) | No | LeWM |
-| `done` | No | Yes (terminal signal) | LeRobot |
+| `reward` | Yes (sparse terminal) | Yes (`next.reward`) | Both |
+| `done` | Yes (`next.done`) | Yes (terminal signal) | Both |
+| `depth` | Optional (HDF5 only) | No | Recorder (`--depth`) |
 | `timestamp` | No | Yes | LeRobot |
 | `episode_idx` | No | Yes | LeRobot |
 | `step_idx` | No | Yes | LeRobot |
@@ -220,7 +243,7 @@ module import time.
 | Real teleop loop | Phase 1 | Requires SO-101 on bench; lerobot robot factory |
 | Camera calibration | Phase 2 | Intrinsics JSON persisted alongside HDF5 |
 | Isaac sim mirror writer | Path C | `lerobot-isaac-env.make_env()` writes HDF5 |
-| Multi-camera | Phase 2 | Dict of `D435Stream` keyed by camera name |
+| Multi-camera | Phase 2 | Dict of `D435Stream` keyed by camera name (e.g. wrist + overhead to match Isaac/sim) |
 | Episode quality preview | Phase 2 | Real-time SAL/TED score during recording |
 | Push to HuggingFace Hub | Phase 2 | `LeRobotDataset.push_to_hub()` after finalize |
-| Depth key in LeRobot | Phase 2 | Add `observation.images.d435_depth` feature |
+| Depth key in LeRobot | Phase 2 | Add `observation.images.<cam>_depth` feature (depth is currently HDF5-only) |

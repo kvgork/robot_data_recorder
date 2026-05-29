@@ -41,6 +41,7 @@ Flat dataclass capturing all recording session parameters.
 | `format` | `str` | `"dual"` | `parquet` / `hdf5` / `dual` |
 | `output_dir` | `str` | `"./datasets"` | Base output directory |
 | `task` | `str` | `"unspecified"` | Task description for metadata |
+| `camera_name` | `str` | `"overhead"` | Image feature key `observation.images.<name>` + HDF5 metadata |
 | `fps` | `int` | `30` | Recording frame rate (Hz) |
 | `arm_port` | `str` | `$LERO_FOLLOWER_PORT` or `"/dev/ttyUSB0"` | SO-101 follower serial port |
 | `leader_port` | `str \| None` | `$LERO_LEADER_PORT` or `None` | SO-101 leader serial port |
@@ -107,17 +108,20 @@ compute_ep_offset([10, 20, 15])
 # array([ 0, 10, 30])
 ```
 
-### `lerobot_features_dict(action_dim, state_dim, image_shape) -> dict`
+### `lerobot_features_dict(action_dim, state_dim, image_shape, camera_key="overhead") -> dict`
 
 Build LeRobot v3 features dict for `LeRobotDataset.create()`.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `action_dim` | `int` | Action space dimension |
-| `state_dim` | `int` | State/proprio dimension |
-| `image_shape` | `tuple[int,int,int]` | `(C, H, W)` — channels-first |
+| `action_dim` | `int` | Action space dimension (6 for SO-101) |
+| `state_dim` | `int` | State dimension (12 for SO-101: joint_pos[6]+joint_vel[6]) |
+| `image_shape` | `tuple[int,int,int]` | `(H, W, C)` — channels-last (matches frame data) |
+| `camera_key` | `str` | Camera name → `observation.images.<camera_key>` |
 
-**Returns:** `dict` with keys `observation.images.d435_rgb`, `observation.state`, `action`.
+**Returns:** `dict` with keys `observation.images.<camera_key>`, `observation.state`
+(12-dim, `joint_pos_*`/`joint_vel_*` names), `action`, `next.reward`, `next.done`.
+The reward/done columns are what the world-model bridge reads for its `rewards`/`dones`.
 
 ---
 
@@ -173,7 +177,7 @@ SO101Teleop(arm_port: str, leader_port: str | None = None)
 |--------|---------|-------------|
 | `start()` | `None` | Connect to hardware. Raises `ImportError` if lerobot missing. |
 | `read_state()` | `dict` | `{"joint_pos": float32(6,), "joint_vel": float32(6,), "gripper": float, "timestamp": float}` |
-| `read_action()` | `np.ndarray float32(7,)` | Current leader action `[joints×6, gripper]` |
+| `read_action()` | `np.ndarray float32(6,)` | Current leader action `[5 joints, gripper]` |
 | `stop()` | `None` | Disconnect |
 
 ### `class MockSO101Teleop`
@@ -270,6 +274,7 @@ CLI entrypoint. Returns `0` on success.
 | `--camera-serial` | `$LERO_CAM_SERIAL` (AUTO if unset) | D435 serial |
 | `--output-dir` | `./datasets` | Output directory |
 | `--task` | `unspecified` | Task description |
+| `--camera-name` | `overhead` | Image feature key `observation.images.<name>` |
 | `--max-steps` | `200` | Episode timeout |
 | `--depth` | `False` | Enable depth stream |
 | `--dry-run` | `False` | Print config, exit 0 |

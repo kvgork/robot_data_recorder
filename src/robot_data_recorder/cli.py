@@ -66,6 +66,16 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="TEXT",
         help="Human-readable task description written to dataset metadata",
     )
+    p.add_argument(
+        "--camera-name",
+        default="overhead",
+        metavar="NAME",
+        help=(
+            "Camera name used for the LeRobot image feature "
+            "(observation.images.<NAME>) and HDF5 metadata. Default: overhead. "
+            "Use the name the downstream trainer/world-model bridge expects."
+        ),
+    )
 
     # Camera
     p.add_argument(
@@ -192,6 +202,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         format=args.format,
         output_dir=args.output_dir,
         task=args.task,
+        camera_name=args.camera_name,
         fps=args.fps,
         arm_port=args.arm_port,
         leader_port=args.leader_port,
